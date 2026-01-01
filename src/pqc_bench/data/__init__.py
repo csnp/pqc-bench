@@ -1,5 +1,15 @@
 """Algorithm and platform data."""
 
+# Data version - update when algorithms, frameworks, or libraries change
+# Format: YYYY-MM (year-month of last significant data update)
+DATA_VERSION = "2024-12"
+DATA_SOURCES = [
+    "NIST FIPS 203/204/205 (August 2024)",
+    "NSA CNSA 2.0 (September 2022)",
+    "GSMA PQ.03 (2024)",
+    "IEC 62443-2-1:2024",
+]
+
 from .algorithms import ALGORITHMS, AlgorithmProfile
 from .compliance import COMPLIANCE_FRAMEWORKS, ComplianceFramework
 from .libraries import (
@@ -44,6 +54,9 @@ from .critical_infrastructure import (
 )
 
 __all__ = [
+    # Data versioning
+    "DATA_VERSION",
+    "DATA_SOURCES",
     # Algorithms
     "ALGORITHMS",
     "AlgorithmProfile",
