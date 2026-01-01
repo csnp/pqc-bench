@@ -4,9 +4,10 @@
 
 *"What post-quantum crypto should I use?"* Finally, there's a tool for that.
 
+[![CI](https://github.com/csnp/pqc-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/csnp/pqc-bench/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/csnp/pqc-bench/branch/main/graph/badge.svg)](https://codecov.io/gh/csnp/pqc-bench)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-227%20passed-brightgreen.svg)](#)
 
 [Why PQC-Bench](#why-pqc-bench) • [Quick Start](#quick-start) • [Features](#features) • [Documentation](#documentation) • [Contributing](#contributing)
 
