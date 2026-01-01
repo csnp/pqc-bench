@@ -306,27 +306,28 @@ We asked pqc-bench what Signal, Chrome, and AWS should use. It recommended the s
 | "TLS for web browsers" | X25519Kyber768 (hybrid) | Chrome/Cloudflare use this |
 | "cloud API with TLS" | ML-KEM-768 | AWS deployed ML-KEM-768 |
 
-### Comprehensive Testing
+### 227 Automated Tests
 
-- **227 unit tests** covering algorithms, parsing, recommendations
-- **Edge case validation** for sector detection accuracy
-- **Word boundary matching** to prevent false positives
+Every recommendation path is tested. Examples:
+- "mobile banking app" → returns ML-KEM-768, ML-DSA-65
+- "embedded sensor 256KB RAM" → returns ML-KEM-512 (smallest)
+- "SCADA industrial control" → detects industrial sector, not automotive
 
-### Based on Authoritative Sources
+### Data Sources
 
-- NIST FIPS 203, 204, 205 standards
-- NSA CNSA 2.0 requirements
-- Industry regulations (IEC 62443, FDA 524B, NERC CIP, SWIFT CSP)
-- Real-world deployment experience
+All recommendations come from published standards:
+- **NIST FIPS 203/204/205** (August 2024) - Algorithm specifications
+- **NSA CNSA 2.0** - Government requirements and deadlines
+- **IEC 62443, FDA 524B, NERC CIP** - Sector-specific regulations
 
 ---
 
-## Philosophy
+## Design Decisions
 
-1. **Security as foundation**: Defaults favor safety over speed
-2. **Answers, not data dumps**: Actionable recommendations with reasoning
-3. **Honest engineering**: Every claim cited, limitations surfaced
-4. **Comprehensive coverage**: All major sectors, regulations, use cases
+1. **When in doubt, recommend the safer option** - ML-KEM-768 over ML-KEM-512 unless you specify constraints
+2. **Tell you which algorithm, not just the tradeoffs** - You get "use ML-DSA-65" not "here are 6 options"
+3. **Say when we don't know** - If your query is ambiguous, we ask for clarification
+4. **Cite sources** - Every regulation reference links to the official document
 
 ---
 
@@ -367,4 +368,4 @@ Apache 2.0 - See [LICENSE](LICENSE) for details.
 
 ---
 
-*"Quantum computers will break today's encryption. The question isn't if, but when. Start your migration now."*
+**Data last updated:** December 2024 | **Next update:** When NIST finalizes FIPS 206 (Falcon)
