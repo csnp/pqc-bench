@@ -6,7 +6,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-227%20passed-brightgreen.svg)](#)
 
-A command-line tool that translates developer constraints into actionable post-quantum cryptography recommendations with full reasoning and citations.
+*"What post-quantum crypto should I use?"* Finally, there's a tool for that.
 
 ---
 
