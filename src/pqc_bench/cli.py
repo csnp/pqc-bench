@@ -16,6 +16,27 @@ from .core.engine import RecommendationEngine
 from .core.parser import QueryParser
 from .data.algorithms import get_algorithm, get_algorithms_by_type, ALGORITHMS
 from .data.compliance import COMPLIANCE_FRAMEWORKS, get_framework
+from .data.libraries import (
+    LIBRARIES,
+    HYBRID_MODES,
+    get_production_ready_libraries,
+    get_libraries_with_fips,
+    get_libraries_for_algorithm,
+    ProductionReadiness,
+)
+from .data.protocol_impact import (
+    calculate_tls_kem_impact,
+    calculate_tls_signature_impact,
+    analyze_certificate_chain,
+    get_ossification_risks,
+)
+from .data.threat_model import (
+    DATA_PROFILES,
+    ThreatUrgency,
+    assess_sndl_risk,
+    calculate_migration_priority,
+    get_profiles_by_urgency,
+)
 from .output.terminal import TerminalOutput
 from .output.json import JsonOutput
 
@@ -608,6 +629,498 @@ def list_algorithms(
 
     console.print(table)
     console.print()
+
+
+@app.command()
+def libraries(
+    production_only: bool = typer.Option(
+        False,
+        "--production",
+        "-p",
+        help="Show only production-ready libraries",
+    ),
+    fips_only: bool = typer.Option(
+        False,
+        "--fips",
+        "-f",
+        help="Show only FIPS-validated libraries",
+    ),
+    algorithm: Optional[str] = typer.Option(
+        None,
+        "--algorithm",
+        "-a",
+        help="Show libraries supporting a specific algorithm",
+    ),
+) -> None:
+    """
+    List cryptographic libraries with production-readiness ratings.
+
+    This is critical information - liboqs is explicitly NOT production-ready,
+    yet many developers use it unaware of this.
+
+    Examples:
+
+        pqc-bench libraries
+
+        pqc-bench libraries --production
+
+        pqc-bench libraries --fips
+
+        pqc-bench libraries --algorithm ml-kem-768
+    """
+    from rich.table import Table
+    from rich import box
+
+    console.print()
+    console.print("[bold]Cryptographic Libraries for PQC[/bold]")
+    console.print("═" * 70)
+    console.print()
+
+    # Filter libraries
+    if fips_only:
+        libs = get_libraries_with_fips()
+    elif production_only:
+        libs = get_production_ready_libraries()
+    elif algorithm:
+        libs = get_libraries_for_algorithm(algorithm)
+        if not libs:
+            console.print(f"[yellow]No libraries found supporting {algorithm}[/yellow]")
+            console.print()
+            return
+    else:
+        libs = list(LIBRARIES.values())
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+    table.add_column("Library")
+    table.add_column("Production")
+    table.add_column("FIPS")
+    table.add_column("Notable Users")
+
+    for lib in libs:
+        # Production readiness styling
+        if lib.production_readiness == ProductionReadiness.PRODUCTION:
+            prod = "[green]Production[/green]"
+        elif lib.production_readiness == ProductionReadiness.EXPERIMENTAL:
+            prod = "[red]Experimental[/red]"
+        elif lib.production_readiness == ProductionReadiness.TRANSITIONAL:
+            prod = "[yellow]Transitional[/yellow]"
+        else:
+            prod = "[dim]Deprecated[/dim]"
+
+        # FIPS styling
+        if lib.fips_cert_number:
+            fips = f"[green]#{lib.fips_cert_number}[/green]"
+        else:
+            fips = "[dim]No[/dim]"
+
+        # Notable users
+        users = ", ".join(lib.notable_users[:3]) if lib.notable_users else "-"
+
+        table.add_row(lib.name, prod, fips, users)
+
+    console.print(table)
+    console.print()
+
+    # Show critical warning about liboqs
+    liboqs = LIBRARIES.get("liboqs")
+    if liboqs and not production_only and not fips_only:
+        console.print("[bold red]CRITICAL WARNING[/bold red]")
+        console.print("─" * 40)
+        console.print("  liboqs is explicitly NOT production-ready.")
+        console.print("  Per liboqs README: 'NOT safe for production'")
+        console.print()
+        console.print("  For production, use: AWS-LC, BoringSSL, or OpenSSL 3.5+")
+        console.print()
+
+
+@app.command()
+def hybrid(
+    use_case: Optional[str] = typer.Option(
+        None,
+        "--use-case",
+        "-u",
+        help="Filter by use case (tls, certificate)",
+    ),
+) -> None:
+    """
+    Show hybrid cryptography modes (classical + PQC).
+
+    Hybrid modes are the practical migration path - they provide
+    security if either the classical OR PQC algorithm is secure.
+
+    Examples:
+
+        pqc-bench hybrid
+
+        pqc-bench hybrid --use-case tls
+    """
+    from rich.table import Table
+    from rich import box
+
+    console.print()
+    console.print("[bold]Hybrid Cryptography Modes[/bold]")
+    console.print("═" * 70)
+    console.print()
+
+    console.print("[dim]Hybrid modes combine classical + PQC for defense-in-depth:[/dim]")
+    console.print("[dim]If either algorithm is secure, the combination is secure.[/dim]")
+    console.print()
+
+    # Filter modes
+    if use_case:
+        from .data.libraries import get_hybrid_modes_for_use_case
+        modes = get_hybrid_modes_for_use_case(use_case)
+    else:
+        modes = list(HYBRID_MODES.values())
+
+    for mode in modes:
+        console.print(f"[bold cyan]{mode.name}[/bold cyan]")
+        console.print("─" * 50)
+        console.print(f"  {mode.description}")
+        console.print()
+        console.print(f"  [dim]Classical:[/dim] {mode.classical_algorithm}")
+        console.print(f"  [dim]PQC:[/dim] {mode.pqc_algorithm}")
+        console.print(f"  [dim]Combined size:[/dim] {mode.combined_size:,} bytes")
+        console.print()
+
+        # Support matrix
+        supports = []
+        if mode.chrome_support:
+            supports.append("[green]Chrome[/green]")
+        if mode.cloudflare_support:
+            supports.append("[green]Cloudflare[/green]")
+        if mode.tls_support:
+            supports.append("[green]TLS[/green]")
+
+        if supports:
+            console.print(f"  [dim]Browser/CDN support:[/dim] {', '.join(supports)}")
+        else:
+            console.print("  [dim]Browser/CDN support:[/dim] [yellow]Not yet[/yellow]")
+
+        if mode.ietf_draft:
+            console.print(f"  [dim]IETF Draft:[/dim] {mode.ietf_draft}")
+
+        console.print(f"  [dim]Recommended until:[/dim] {mode.recommended_until}")
+
+        if mode.libraries:
+            libs = [LIBRARIES.get(lib_id, type("", (), {"name": lib_id})).name for lib_id in mode.libraries]
+            console.print(f"  [dim]Libraries:[/dim] {', '.join(libs)}")
+
+        console.print()
+
+    console.print("[bold]Why Hybrid?[/bold]")
+    console.print("─" * 40)
+    console.print("  1. PQC algorithms are newer; hybrid provides insurance")
+    console.print("  2. X25519Kyber768 is already deployed in Chrome/Cloudflare")
+    console.print("  3. NIST and NSA recommend hybrid during transition period")
+    console.print()
+
+
+@app.command()
+def threat(
+    data_type: Optional[str] = typer.Option(
+        None,
+        "--data-type",
+        "-d",
+        help="Data type to assess (e.g., healthcare_records, intellectual_property)",
+    ),
+    list_types: bool = typer.Option(
+        False,
+        "--list",
+        "-l",
+        help="List all data type profiles",
+    ),
+    urgency: Optional[str] = typer.Option(
+        None,
+        "--urgency",
+        "-u",
+        help="Filter by urgency level (critical, high, medium, low)",
+    ),
+) -> None:
+    """
+    Assess 'Store Now, Decrypt Later' (SNDL) threat for your data.
+
+    The SNDL threat is the primary driver for PQC adoption: adversaries
+    can capture encrypted traffic today and decrypt it when quantum
+    computers become available.
+
+    Examples:
+
+        pqc-bench threat --list
+
+        pqc-bench threat --data-type healthcare_records
+
+        pqc-bench threat --urgency critical
+    """
+    from rich.table import Table
+    from rich import box
+
+    console.print()
+    console.print("[bold]SNDL Threat Assessment[/bold]")
+    console.print("═" * 70)
+    console.print()
+
+    if list_types or (not data_type and not urgency):
+        # List all data profiles
+        console.print("[dim]Data must be protected for: lifespan + migration time > quantum threat[/dim]")
+        console.print()
+
+        table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+        table.add_column("Profile")
+        table.add_column("Lifespan")
+        table.add_column("Urgency")
+        table.add_column("Deadline")
+
+        for profile in DATA_PROFILES.values():
+            # Urgency styling
+            urgency_styles = {
+                ThreatUrgency.CRITICAL: "[red]CRITICAL[/red]",
+                ThreatUrgency.HIGH: "[yellow]HIGH[/yellow]",
+                ThreatUrgency.MEDIUM: "[blue]MEDIUM[/blue]",
+                ThreatUrgency.LOW: "[green]LOW[/green]",
+                ThreatUrgency.MONITORING: "[dim]MONITOR[/dim]",
+            }
+            urg_str = urgency_styles.get(profile.urgency, str(profile.urgency))
+
+            # Calculate deadline
+            from .data.threat_model import calculate_migration_deadline
+            deadline = calculate_migration_deadline(profile.typical_lifespan_years)
+            if deadline < 0:
+                deadline_str = f"[red]{abs(deadline)}y OVERDUE[/red]"
+            elif deadline < 3:
+                deadline_str = f"[yellow]{deadline}y[/yellow]"
+            else:
+                deadline_str = f"{deadline}y"
+
+            table.add_row(
+                profile.name,
+                f"{profile.typical_lifespan_years}y",
+                urg_str,
+                deadline_str,
+            )
+
+        console.print(table)
+        console.print()
+        console.print("[dim]Run with --data-type <profile_id> for detailed assessment[/dim]")
+        console.print()
+        return
+
+    if urgency:
+        # Filter by urgency
+        urgency_map = {
+            "critical": ThreatUrgency.CRITICAL,
+            "high": ThreatUrgency.HIGH,
+            "medium": ThreatUrgency.MEDIUM,
+            "low": ThreatUrgency.LOW,
+            "monitoring": ThreatUrgency.MONITORING,
+        }
+        urg = urgency_map.get(urgency.lower())
+        if not urg:
+            console.print(f"[red]Unknown urgency level: {urgency}[/red]")
+            console.print("Valid levels: critical, high, medium, low, monitoring")
+            raise typer.Exit(1)
+
+        profiles = get_profiles_by_urgency(urg)
+        console.print(f"[bold]Data profiles with {urgency.upper()} urgency:[/bold]")
+        console.print()
+        for profile in profiles:
+            console.print(f"  • [bold]{profile.name}[/bold]")
+            console.print(f"    {profile.description}")
+            console.print(f"    Action: {profile.recommended_action}")
+            console.print()
+        return
+
+    # Detailed assessment for specific data type
+    assessment = assess_sndl_risk(data_type)
+    if not assessment:
+        console.print(f"[red]Unknown data type: {data_type}[/red]")
+        console.print()
+        console.print("Available data types:")
+        for profile_id in DATA_PROFILES.keys():
+            console.print(f"  • {profile_id}")
+        raise typer.Exit(1)
+
+    profile = assessment.data_profile
+
+    console.print(f"[bold]{profile.name}[/bold]")
+    console.print("─" * 50)
+    console.print()
+    console.print(f"[dim]Description:[/dim] {profile.description}")
+    console.print(f"[dim]Typical lifespan:[/dim] {profile.typical_lifespan_years} years")
+    console.print(f"[dim]Classification:[/dim] {profile.classification.value}")
+    console.print()
+
+    # Risk assessment
+    if assessment.is_at_risk:
+        console.print("[bold red]⚠ AT RISK[/bold red]")
+    else:
+        console.print("[bold green]✓ MANAGEABLE[/bold green]")
+
+    console.print()
+    console.print(assessment.risk_explanation)
+    console.print()
+
+    console.print("[bold]Examples:[/bold]")
+    for example in profile.examples:
+        console.print(f"  • {example}")
+    console.print()
+
+    console.print("[bold]Recommended Action:[/bold]")
+    console.print(f"  {profile.recommended_action}")
+    console.print()
+
+    if assessment.recommended_hybrid:
+        console.print(f"[bold]Recommended Hybrid Mode:[/bold] {assessment.recommended_hybrid}")
+    if assessment.recommended_algorithm:
+        console.print(f"[bold]Recommended Algorithm:[/bold] {assessment.recommended_algorithm}")
+    console.print()
+
+
+@app.command()
+def impact(
+    algorithm: str = typer.Argument(..., help="Algorithm to analyze (e.g., ml-kem-768, ml-dsa-65)"),
+    chain_length: int = typer.Option(
+        3,
+        "--chain-length",
+        "-c",
+        help="Certificate chain length for signature analysis",
+    ),
+) -> None:
+    """
+    Analyze protocol impact of using a PQC algorithm.
+
+    Shows TLS handshake impact, certificate chain sizes,
+    and potential compatibility issues.
+
+    Examples:
+
+        pqc-bench impact ml-kem-768
+
+        pqc-bench impact ml-dsa-65 --chain-length 4
+    """
+    from rich.table import Table
+    from rich import box
+
+    algo = get_algorithm(algorithm)
+    if not algo:
+        console.print(f"[red]Unknown algorithm: {algorithm}[/red]")
+        raise typer.Exit(1)
+
+    console.print()
+    console.print(f"[bold]Protocol Impact: {algo.names.nist_name}[/bold]")
+    console.print("═" * 70)
+    console.print()
+
+    if algo.is_kem:
+        impact_data = calculate_tls_kem_impact(algorithm)
+        if impact_data:
+            console.print("[bold]TLS 1.3 Handshake Impact (Key Exchange)[/bold]")
+            console.print("─" * 50)
+            console.print(f"  [dim]Baseline:[/dim] {impact_data.comparison_baseline}")
+            console.print()
+
+            table = Table(box=box.SIMPLE)
+            table.add_column("Metric", style="dim")
+            table.add_column("Delta")
+
+            table.add_row("ClientHello", f"+{impact_data.client_hello_delta:,} bytes")
+            table.add_row("ServerHello", f"+{impact_data.server_hello_delta:,} bytes")
+            table.add_row("Total Handshake", f"+{impact_data.total_handshake_delta:,} bytes")
+
+            console.print(table)
+            console.print()
+
+            # Fragmentation risk
+            frag_colors = {"low": "green", "medium": "yellow", "high": "red"}
+            frag_color = frag_colors.get(impact_data.packet_fragmentation_risk, "white")
+            console.print(
+                f"  [dim]Fragmentation risk:[/dim] [{frag_color}]{impact_data.packet_fragmentation_risk}[/{frag_color}]"
+            )
+
+            # Middlebox compatibility
+            mb_colors = {"good": "green", "moderate": "yellow", "poor": "red"}
+            mb_color = mb_colors.get(impact_data.middlebox_compatibility, "white")
+            console.print(
+                f"  [dim]Middlebox compatibility:[/dim] [{mb_color}]{impact_data.middlebox_compatibility}[/{mb_color}]"
+            )
+
+            if impact_data.known_issues:
+                console.print()
+                console.print("[bold]Known Issues:[/bold]")
+                for issue in impact_data.known_issues:
+                    console.print(f"  • {issue}")
+
+    else:
+        # Signature algorithm
+        impact_data = calculate_tls_signature_impact(algorithm, chain_length)
+        chain_data = analyze_certificate_chain(algorithm, chain_length)
+
+        if impact_data:
+            console.print(f"[bold]TLS 1.3 Handshake Impact (Certificate Chain of {chain_length})[/bold]")
+            console.print("─" * 50)
+            console.print(f"  [dim]Baseline:[/dim] {impact_data.comparison_baseline}")
+            console.print()
+
+            table = Table(box=box.SIMPLE)
+            table.add_column("Metric", style="dim")
+            table.add_column("Delta")
+
+            table.add_row("Per Certificate", f"+{impact_data.certificate_delta:,} bytes")
+            table.add_row("Total Handshake", f"+{impact_data.total_handshake_delta:,} bytes")
+
+            console.print(table)
+            console.print()
+
+        if chain_data:
+            console.print("[bold]Certificate Chain Analysis[/bold]")
+            console.print("─" * 50)
+
+            table = Table(box=box.SIMPLE)
+            table.add_column("Metric", style="dim")
+            table.add_column("Classical")
+            table.add_column("PQC")
+            table.add_column("Increase")
+
+            table.add_row(
+                "Single Cert",
+                f"{chain_data.classical_cert_size:,} bytes",
+                f"{chain_data.pqc_cert_size:,} bytes",
+                f"{chain_data.size_increase_factor:.1f}x",
+            )
+            table.add_row(
+                f"Chain ({chain_length})",
+                f"{chain_data.classical_chain_size:,} bytes",
+                f"{chain_data.pqc_chain_size:,} bytes",
+                f"+{chain_data.total_increase_bytes:,} bytes",
+            )
+            table.add_row(
+                "TCP Segments",
+                str(chain_data.tcp_segments_classical),
+                str(chain_data.tcp_segments_pqc),
+                f"+{chain_data.additional_segments}",
+            )
+
+            console.print(table)
+            console.print()
+
+            if chain_data.mitigations:
+                console.print("[bold]Mitigations:[/bold]")
+                for mitigation in chain_data.mitigations:
+                    console.print(f"  • {mitigation}")
+                console.print()
+
+    # Ossification risks
+    risks = get_ossification_risks(algorithm)
+    if risks:
+        console.print("[bold]Protocol Ossification Risks[/bold]")
+        console.print("─" * 50)
+        for risk in risks:
+            severity_colors = {"low": "green", "medium": "yellow", "high": "red"}
+            sev_color = severity_colors.get(risk.severity, "white")
+            console.print(f"  [{sev_color}]{risk.severity.upper()}[/{sev_color}]: {risk.description}")
+            console.print(f"    [dim]Affected:[/dim] {', '.join(risk.affected_systems)}")
+            console.print(f"    [dim]Mitigation:[/dim] {risk.mitigation}")
+            console.print()
 
 
 if __name__ == "__main__":
