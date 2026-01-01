@@ -296,15 +296,18 @@ $ pqc-bench libraries
 
 ## Why Trust PQC-Bench?
 
-### Tested Against Real Deployments
+### Recommendations Include Reasoning
 
-We asked pqc-bench what Signal, Chrome, and AWS should use. It recommended the same algorithms they actually deployed:
+Every recommendation explains *why*, so you can verify the logic:
 
-| Query | PQC-Bench Says | Real-World Choice |
-|-------|----------------|-------------------|
-| "secure messaging app" | ML-KEM-1024 | Signal uses ML-KEM-1024 |
-| "TLS for web browsers" | X25519Kyber768 (hybrid) | Chrome/Cloudflare use this |
-| "cloud API with TLS" | ML-KEM-768 | AWS deployed ML-KEM-768 |
+```bash
+$ pqc-bench recommend "secure messaging app"
+
+→ ML-KEM-1024
+  Why: Messages may be stored indefinitely. Level 5 security
+  protects against future quantum attacks on archived ciphertext.
+  This is what Signal chose for the same reason.
+```
 
 ### 227 Automated Tests
 
