@@ -50,18 +50,10 @@ PQC-Bench gives you **answers**, not data dumps:
 
 ### Installation
 
-**Option 1: pip (recommended)**
-
-```bash
-pip install pqc-bench
-```
-
-**Option 2: From source**
-
 ```bash
 git clone https://github.com/csnp/pqc-bench.git
 cd pqc-bench
-pip install -e ".[dev]"
+pip install -e .
 ```
 
 ### Basic Usage
@@ -86,11 +78,6 @@ pqc-bench sector healthcare
 ### Try It Out
 
 ```bash
-# Clone and install
-git clone https://github.com/csnp/pqc-bench.git
-cd pqc-bench
-pip install -e .
-
 # Try some queries
 pqc-bench recommend "mobile banking app"
 # → ML-KEM-768 for key exchange, ML-DSA-65 for signatures
