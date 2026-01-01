@@ -44,11 +44,21 @@ $ pqc-bench "REST API with JWT auth, running on AWS Lambda"
 
 ## Features
 
+### Core Recommendations
 - **Natural language queries**: Describe your use case, get recommendations
 - **Intelligent reasoning**: Understands context (e.g., "fintech" implies compliance needs)
 - **Comprehensive coverage**: All NIST PQC standards, major platforms, common use cases
-- **Compliance mapping**: FIPS 140-3, CNSA 2.0, and more
+- **Compliance mapping**: FIPS 140-3, CNSA 2.0, PCI-DSS, HIPAA, and more
 - **Migration guidance**: Clear paths from RSA, ECDSA, and other classical algorithms
+
+### Expert-Level Analysis (v0.2.0+)
+- **Library maturity database**: Know which libraries are production-ready (CRITICAL: liboqs is NOT)
+- **Hybrid cryptography**: X25519Kyber768 guidance (already deployed in Chrome/Cloudflare)
+- **Protocol impact analysis**: TLS handshake sizes, certificate chain calculations, TCP segments
+- **SNDL threat model**: "Store Now, Decrypt Later" prioritization based on data lifespan
+- **Ossification risks**: Middlebox compatibility, fragmentation analysis
+
+### Philosophy
 - **Honest engineering**: Every claim cited, caveats surfaced, uncertainty acknowledged
 
 ## Installation
@@ -86,13 +96,30 @@ pqc-bench compliance cnsa-2.0 --use-case tls
 
 ## Commands
 
+### Recommendations & Research
+
 | Command | Description |
 |---------|-------------|
-| `pqc-bench "<query>"` | Get algorithm recommendation for your use case |
+| `pqc-bench recommend "<query>"` | Get algorithm recommendation for your use case |
 | `pqc-bench explain <algorithm>` | Deep dive on a specific algorithm |
 | `pqc-bench compare <a> <b>` | Side-by-side comparison |
+| `pqc-bench list` | List all available algorithms |
+
+### Migration & Compliance
+
+| Command | Description |
+|---------|-------------|
 | `pqc-bench migrate --from <classical>` | Migration path from classical crypto |
 | `pqc-bench compliance <framework>` | Framework-specific requirements |
+| `pqc-bench libraries` | Production-ready library recommendations |
+| `pqc-bench hybrid` | Hybrid cryptography modes (X25519+ML-KEM) |
+
+### Threat & Impact Analysis
+
+| Command | Description |
+|---------|-------------|
+| `pqc-bench threat` | SNDL (Store Now, Decrypt Later) threat assessment |
+| `pqc-bench impact <algorithm>` | Protocol impact analysis (TLS, certificates) |
 
 ## Output Formats
 
