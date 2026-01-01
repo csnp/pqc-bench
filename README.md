@@ -50,6 +50,8 @@ PQC-Bench gives you **answers**, not data dumps:
 
 ### Installation
 
+Requires Python 3.10+ ([install Python](https://www.python.org/downloads/))
+
 ```bash
 git clone https://github.com/csnp/pqc-bench.git
 cd pqc-bench
