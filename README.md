@@ -6,7 +6,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-227%20passed-brightgreen.svg)](#)
 
-*"What post-quantum crypto should I use?"* Finally, there's a tool for that.
+*"What post-quantum crypto should I use?"* Finally, there's a tool for that: **pqc-bench**.
 
 ---
 
@@ -296,15 +296,15 @@ $ pqc-bench libraries
 
 ## Why Trust PQC-Bench?
 
-### Validated Against Real Deployments
+### Tested Against Real Deployments
 
-Our recommendations match what security experts chose:
+We asked pqc-bench what Signal, Chrome, and AWS should use. It recommended the same algorithms they actually deployed:
 
-| Deployment | They Chose | PQC-Bench Recommends |
-|------------|------------|---------------------|
-| Signal PQXDH | ML-KEM-1024 | ML-KEM-1024 for messaging |
-| Chrome/Cloudflare | X25519Kyber768 | Hybrid for web TLS |
-| AWS TLS | ML-KEM-768 | ML-KEM-768 for cloud |
+| Query | PQC-Bench Says | Real-World Choice |
+|-------|----------------|-------------------|
+| "secure messaging app" | ML-KEM-1024 | Signal uses ML-KEM-1024 |
+| "TLS for web browsers" | X25519Kyber768 (hybrid) | Chrome/Cloudflare use this |
+| "cloud API with TLS" | ML-KEM-768 | AWS deployed ML-KEM-768 |
 
 ### Comprehensive Testing
 
