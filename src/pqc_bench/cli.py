@@ -1123,5 +1123,253 @@ def impact(
             console.print()
 
 
+@app.command()
+def sector(
+    sector_name: Optional[str] = typer.Argument(
+        None,
+        help="Sector to analyze (space, automotive, industrial, energy, healthcare, financial, telecom)",
+    ),
+    list_sectors: bool = typer.Option(
+        False,
+        "--list",
+        "-l",
+        help="List all critical infrastructure sectors",
+    ),
+    deadlines: bool = typer.Option(
+        False,
+        "--deadlines",
+        "-d",
+        help="Show compliance deadlines across all sectors",
+    ),
+) -> None:
+    """
+    Critical infrastructure sector-specific PQC guidance.
+
+    Shows sector-specific constraints, regulations, and recommendations
+    for space, automotive, industrial OT, energy, healthcare, financial,
+    and telecommunications sectors.
+
+    Examples:
+
+        pqc-bench sector --list
+
+        pqc-bench sector space
+
+        pqc-bench sector automotive
+
+        pqc-bench sector --deadlines
+    """
+    from rich.table import Table
+    from rich import box
+
+    from .data.critical_infrastructure import (
+        SECTOR_PROFILES,
+        MigrationUrgency,
+        get_sector_profile,
+        get_compliance_deadlines,
+    )
+
+    console.print()
+
+    if deadlines:
+        console.print("[bold]PQC Compliance Deadlines by Sector[/bold]")
+        console.print("═" * 70)
+        console.print()
+
+        all_deadlines = get_compliance_deadlines()
+        if not all_deadlines:
+            console.print("[dim]No specific deadlines found.[/dim]")
+            return
+
+        table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+        table.add_column("Sector")
+        table.add_column("Framework")
+        table.add_column("Deadline")
+
+        for sector_name_dl, framework, deadline in all_deadlines:
+            table.add_row(sector_name_dl, framework, deadline)
+
+        console.print(table)
+        console.print()
+        return
+
+    if list_sectors or not sector_name:
+        console.print("[bold]Critical Infrastructure Sectors[/bold]")
+        console.print("═" * 70)
+        console.print()
+        console.print("[dim]Sector-specific PQC guidance based on real constraints and regulations.[/dim]")
+        console.print()
+
+        table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
+        table.add_column("Sector")
+        table.add_column("Urgency")
+        table.add_column("SNDL Risk")
+        table.add_column("Equipment Lifecycle")
+        table.add_column("Key Constraint")
+
+        for profile in SECTOR_PROFILES.values():
+            urgency_styles = {
+                MigrationUrgency.CRITICAL: "[red]CRITICAL[/red]",
+                MigrationUrgency.HIGH: "[yellow]HIGH[/yellow]",
+                MigrationUrgency.MEDIUM: "[blue]MEDIUM[/blue]",
+                MigrationUrgency.PLANNING: "[dim]PLANNING[/dim]",
+            }
+            urgency_str = urgency_styles.get(profile.urgency, str(profile.urgency.value))
+
+            sndl_styles = {
+                "extreme": "[red]EXTREME[/red]",
+                "high": "[yellow]HIGH[/yellow]",
+                "medium": "[blue]MEDIUM[/blue]",
+                "low": "[green]LOW[/green]",
+            }
+            sndl_str = sndl_styles.get(profile.sndl_risk, profile.sndl_risk)
+
+            key_constraint = profile.constraints[0].name if profile.constraints else "-"
+
+            table.add_row(
+                profile.name,
+                urgency_str,
+                sndl_str,
+                f"{profile.equipment_lifecycle_years}y",
+                key_constraint,
+            )
+
+        console.print(table)
+        console.print()
+        console.print("[dim]Run: pqc-bench sector <sector_id> for detailed guidance[/dim]")
+        console.print("[dim]Sector IDs: space, automotive, industrial, energy, healthcare, financial, telecom[/dim]")
+        console.print()
+        return
+
+    # Map short names to sector IDs
+    sector_map = {
+        "space": "space_aerospace",
+        "aerospace": "space_aerospace",
+        "satellite": "space_aerospace",
+        "automotive": "automotive",
+        "vehicle": "automotive",
+        "ev": "automotive",
+        "v2x": "automotive",
+        "industrial": "industrial_ot",
+        "ot": "industrial_ot",
+        "scada": "industrial_ot",
+        "ics": "industrial_ot",
+        "energy": "energy_utilities",
+        "utilities": "energy_utilities",
+        "power": "energy_utilities",
+        "grid": "energy_utilities",
+        "healthcare": "healthcare",
+        "medical": "healthcare",
+        "hospital": "healthcare",
+        "financial": "financial",
+        "banking": "financial",
+        "finance": "financial",
+        "payments": "financial",
+        "telecom": "telecommunications",
+        "telecommunications": "telecommunications",
+        "5g": "telecommunications",
+        "mobile": "telecommunications",
+    }
+
+    sector_id = sector_map.get(sector_name.lower(), sector_name.lower())
+    profile = get_sector_profile(sector_id)
+
+    if not profile:
+        console.print(f"[red]Unknown sector: {sector_name}[/red]")
+        console.print()
+        console.print("Available sectors:")
+        for sid in SECTOR_PROFILES.keys():
+            console.print(f"  • {sid}")
+        raise typer.Exit(1)
+
+    # Header
+    console.print(f"[bold]{profile.name}[/bold]")
+    console.print("═" * 70)
+    console.print()
+    console.print(f"[dim]{profile.description}[/dim]")
+    console.print()
+
+    # Urgency and risk
+    urgency_styles = {
+        MigrationUrgency.CRITICAL: "[bold red]CRITICAL[/bold red]",
+        MigrationUrgency.HIGH: "[bold yellow]HIGH[/bold yellow]",
+        MigrationUrgency.MEDIUM: "[blue]MEDIUM[/blue]",
+        MigrationUrgency.PLANNING: "[dim]PLANNING[/dim]",
+    }
+    console.print(f"[bold]Migration Urgency:[/bold] {urgency_styles.get(profile.urgency, str(profile.urgency.value))}")
+    console.print(f"[bold]SNDL Risk:[/bold] {profile.sndl_risk.upper()}")
+    console.print(f"[bold]Data Lifespan:[/bold] {profile.data_lifespan_years} years")
+    console.print(f"[bold]Equipment Lifecycle:[/bold] {profile.equipment_lifecycle_years} years")
+    console.print()
+
+    # Regulations
+    if profile.regulations:
+        console.print("[bold]Regulatory Framework[/bold]")
+        console.print("─" * 50)
+        for reg in profile.regulations:
+            req_style = {
+                "mandatory": "[red]MANDATORY[/red]",
+                "recommended": "[yellow]RECOMMENDED[/yellow]",
+                "none": "[dim]Not yet[/dim]",
+            }
+            console.print(f"  • [cyan]{reg.name}[/cyan] ({reg.authority})")
+            console.print(f"    PQC Requirement: {req_style.get(reg.pqc_requirement, reg.pqc_requirement)}")
+            if reg.deadline:
+                console.print(f"    Deadline: [bold]{reg.deadline}[/bold]")
+            if reg.notes:
+                console.print(f"    [dim]{reg.notes}[/dim]")
+            console.print()
+
+    # Technical constraints
+    if profile.constraints:
+        console.print("[bold]Technical Constraints[/bold]")
+        console.print("─" * 50)
+        for constraint in profile.constraints:
+            severity_colors = {"blocking": "red", "major": "yellow", "minor": "dim"}
+            sev_color = severity_colors.get(constraint.severity, "white")
+            console.print(f"  [{sev_color}]{constraint.severity.upper()}[/{sev_color}]: {constraint.name}")
+            console.print(f"    {constraint.description}")
+            console.print(f"    [dim]Impact:[/dim] {constraint.impact}")
+            console.print()
+
+    # Recommendations
+    console.print("[bold]Algorithm Recommendations[/bold]")
+    console.print("─" * 50)
+    console.print(f"  KEM: [green]{profile.recommended_kem}[/green]")
+    console.print(f"  Signature: [green]{profile.recommended_sig}[/green]")
+    if profile.recommended_hybrid_kem:
+        console.print(f"  Hybrid KEM: [cyan]{profile.recommended_hybrid_kem}[/cyan]")
+    if profile.recommended_hybrid_sig:
+        console.print(f"  Hybrid Sig: [cyan]{profile.recommended_hybrid_sig}[/cyan]")
+    console.print()
+
+    # Migration priority
+    if profile.migration_priority:
+        console.print("[bold]Migration Priority[/bold]")
+        console.print("─" * 50)
+        for i, priority in enumerate(profile.migration_priority, 1):
+            console.print(f"  {i}. {priority}")
+        console.print()
+
+    # Special considerations
+    if profile.special_considerations:
+        console.print("[bold]Special Considerations[/bold]")
+        console.print("─" * 50)
+        for consideration in profile.special_considerations:
+            if consideration.startswith("CRYPTO-AGILITY") or consideration.startswith("Falcon"):
+                console.print(f"  [yellow]⚠ {consideration}[/yellow]")
+            else:
+                console.print(f"  • {consideration}")
+        console.print()
+
+    # References
+    if profile.key_references:
+        console.print("[bold]Key References[/bold]")
+        console.print("─" * 50)
+        for ref in profile.key_references:
+            console.print(f"  [cyan]{ref}[/cyan]")
+        console.print()
+
+
 if __name__ == "__main__":
     app()

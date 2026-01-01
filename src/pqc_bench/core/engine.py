@@ -152,15 +152,17 @@ class RecommendationEngine:
 
         for algo in self.algorithms.values():
             # Type filter
-            if constraints.needs_kem and not algo.is_kem:
-                continue
-            if constraints.needs_signature and not algo.is_signature:
-                continue
-
-            # If needs both, skip (will need separate recommendations)
+            # If needs_both (TLS), include both KEMs and signatures
             if constraints.needs_both:
-                # For combined needs, we'll handle separately
-                pass
+                # Accept either KEM or signature algorithms
+                if not algo.is_kem and not algo.is_signature:
+                    continue
+            else:
+                # Normal filtering: match exactly what's needed
+                if constraints.needs_kem and not algo.is_kem:
+                    continue
+                if constraints.needs_signature and not algo.is_signature:
+                    continue
 
             # NIST standardization requirement
             if constraints.requires_nist_standardized and not algo.compliance.nist_standardized:
@@ -431,7 +433,21 @@ class RecommendationEngine:
 
         if algo.is_kem:
             ct_size = algo.sizes.ciphertext or 0
+            pk_size = algo.sizes.public_key or 0
+
+            # Prefer smaller KEMs for constrained/embedded
+            if constraints.prefer_smaller_keys or constraints.is_embedded:
+                if pk_size < 900:  # ML-KEM-512 is ~800
+                    score += 25
+                elif pk_size < 1300:  # ML-KEM-768 is ~1184
+                    score += 10
+                else:
+                    score -= 5
+
             if constraints.max_ciphertext_bytes and ct_size > constraints.max_ciphertext_bytes:
+                score -= 30
+
+            if constraints.max_public_key_bytes and pk_size > constraints.max_public_key_bytes:
                 score -= 30
 
         return min(100, max(0, score))
@@ -535,9 +551,24 @@ class RecommendationEngine:
             )
 
         if constraints.needs_both:
+            # Separate KEM and signature recommendations
+            kems = [r for r in recommendations if r.algorithm.is_kem]
+            sigs = [r for r in recommendations if r.algorithm.is_signature]
+            if kems and sigs:
+                notes.append(
+                    f"TLS requires both: Use {kems[0].algorithm.names.nist_name} (KEM) + "
+                    f"{sigs[0].algorithm.names.nist_name} (signature). "
+                    "For hybrid: pqc-bench hybrid"
+                )
+            else:
+                notes.append(
+                    "TLS/VPN requires both KEM and signature algorithms. "
+                    "See 'pqc-bench hybrid' for hybrid modes."
+                )
+
+        if constraints.is_embedded:
             notes.append(
-                "TLS/VPN requires both KEM and signature algorithms. "
-                "Run separate queries for each."
+                "Constrained device: smaller algorithms preferred for memory/bandwidth."
             )
 
         return notes

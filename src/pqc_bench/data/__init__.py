@@ -30,6 +30,18 @@ from .threat_model import (
     calculate_migration_priority,
     get_profiles_by_urgency,
 )
+from .critical_infrastructure import (
+    SECTOR_PROFILES,
+    Sector,
+    SectorProfile,
+    MigrationUrgency,
+    get_sector_profile,
+    get_all_sectors,
+    get_critical_sectors,
+    detect_sector_from_query,
+    get_sector_recommendation,
+    get_compliance_deadlines,
+)
 
 __all__ = [
     # Algorithms
@@ -63,4 +75,15 @@ __all__ = [
     "assess_sndl_risk",
     "calculate_migration_priority",
     "get_profiles_by_urgency",
+    # Critical infrastructure
+    "SECTOR_PROFILES",
+    "Sector",
+    "SectorProfile",
+    "MigrationUrgency",
+    "get_sector_profile",
+    "get_all_sectors",
+    "get_critical_sectors",
+    "detect_sector_from_query",
+    "get_sector_recommendation",
+    "get_compliance_deadlines",
 ]

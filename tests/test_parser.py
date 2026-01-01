@@ -106,3 +106,39 @@ class TestQueryParser:
             "JWT auth for mobile iOS app with FIPS compliance"
         )
         assert detailed.confidence > basic.confidence
+
+    def test_parse_nginx_as_tls(self, parser: QueryParser) -> None:
+        """nginx keyword should detect TLS use case."""
+        constraints = parser.parse("nginx reverse proxy")
+        assert constraints.use_case == UseCase.TLS
+        assert constraints.needs_both is True
+
+    def test_parse_apache_as_tls(self, parser: QueryParser) -> None:
+        """apache keyword should detect TLS use case."""
+        constraints = parser.parse("apache web server")
+        assert constraints.use_case == UseCase.TLS
+
+    def test_parse_load_balancer_as_tls(self, parser: QueryParser) -> None:
+        """load balancer keyword should detect TLS use case."""
+        constraints = parser.parse("load balancer with TLS termination")
+        assert constraints.use_case == UseCase.TLS
+
+    def test_parse_constrained_device(self, parser: QueryParser) -> None:
+        """Constrained device should lower security level and prefer smaller sizes."""
+        constraints = parser.parse("constrained IoT device with limited memory")
+        assert constraints.is_embedded is True
+        assert constraints.min_security_level == SecurityLevel.LEVEL_1
+        assert constraints.prefer_smaller_keys is True
+        assert constraints.max_public_key_bytes is not None
+
+    def test_parse_embedded_platform(self, parser: QueryParser) -> None:
+        """Embedded keywords should detect embedded platform."""
+        constraints = parser.parse("ESP32 microcontroller with RTOS")
+        assert constraints.platform == Platform.EMBEDDED
+        assert constraints.is_embedded is True
+
+    def test_parse_low_power_device(self, parser: QueryParser) -> None:
+        """Low power keywords should trigger constrained device handling."""
+        constraints = parser.parse("low power sensor device")
+        assert constraints.min_security_level == SecurityLevel.LEVEL_1
+        assert constraints.prefer_smaller_keys is True

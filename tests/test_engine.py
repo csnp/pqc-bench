@@ -218,3 +218,80 @@ class TestScoringWeights:
         )
         weights = engine._adjust_weights(constraints)
         assert weights["size"] > engine.DEFAULT_WEIGHTS["size"]
+
+
+class TestTLSAndConstrainedDevices:
+    """Tests for TLS and constrained device handling."""
+
+    @pytest.fixture
+    def engine(self) -> RecommendationEngine:
+        return RecommendationEngine()
+
+    def test_needs_both_returns_kems_and_sigs(self, engine: RecommendationEngine) -> None:
+        """TLS use case (needs_both) should return both KEMs and signatures."""
+        constraints = Constraints(
+            use_case=UseCase.TLS,
+            needs_kem=True,
+            needs_signature=True,
+            needs_both=True,
+        )
+        result = engine.recommend(constraints, top_n=6)
+
+        # Should have at least one KEM and one signature
+        kems = [r for r in result.recommendations if r.algorithm.is_kem]
+        sigs = [r for r in result.recommendations if r.algorithm.is_signature]
+        assert len(kems) > 0, "TLS should include KEM recommendations"
+        assert len(sigs) > 0, "TLS should include signature recommendations"
+
+    def test_constrained_device_prefers_smaller_kem(
+        self, engine: RecommendationEngine
+    ) -> None:
+        """Constrained devices should prefer smaller KEM variants."""
+        # Standard server recommendation
+        server_constraints = Constraints(
+            needs_kem=True,
+            is_server=True,
+            min_security_level=SecurityLevel.LEVEL_3,
+        )
+        server_result = engine.recommend(server_constraints)
+
+        # Constrained device recommendation
+        constrained_constraints = Constraints(
+            needs_kem=True,
+            is_embedded=True,
+            prefer_smaller_keys=True,
+            min_security_level=SecurityLevel.LEVEL_1,
+        )
+        constrained_result = engine.recommend(constrained_constraints)
+
+        # Constrained device should get smaller KEM
+        server_kem_size = server_result.primary.algorithm.sizes.public_key
+        constrained_kem_size = constrained_result.primary.algorithm.sizes.public_key
+        assert constrained_kem_size <= server_kem_size
+
+    def test_tls_notes_include_both_algorithms(
+        self, engine: RecommendationEngine
+    ) -> None:
+        """TLS recommendation notes should mention needing both KEM and signature."""
+        constraints = Constraints(
+            use_case=UseCase.TLS,
+            needs_kem=True,
+            needs_signature=True,
+            needs_both=True,
+        )
+        result = engine.recommend(constraints, top_n=6)
+
+        # Notes should mention TLS requires both
+        note_text = " ".join(result.notes).lower()
+        assert "tls" in note_text or "both" in note_text or "kem" in note_text
+
+    def test_embedded_context_increases_size_weight(
+        self, engine: RecommendationEngine
+    ) -> None:
+        """Embedded context should increase size weight."""
+        constraints = Constraints(
+            needs_kem=True,
+            is_embedded=True,
+        )
+        weights = engine._adjust_weights(constraints)
+        assert weights["size"] > engine.DEFAULT_WEIGHTS["size"]

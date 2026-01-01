@@ -83,7 +83,18 @@ class QueryParser:
             "cryptocurrency",
             "ledger",
         ],
-        UseCase.TLS: ["tls", "https", "ssl", "handshake", "web server"],
+        UseCase.TLS: [
+            "tls",
+            "https",
+            "ssl",
+            "handshake",
+            "web server",
+            "nginx",
+            "apache",
+            "load balancer",
+            "reverse proxy",
+            "cdn",
+        ],
         UseCase.JWT: ["jwt", "json web token", "bearer token", "oauth", "oidc", "api auth"],
         UseCase.CODE_SIGNING: ["code signing", "binary signing", "software signing", "package signing"],
         UseCase.VPN: ["vpn", "tunnel", "wireguard", "ipsec", "openvpn"],
@@ -242,7 +253,10 @@ class QueryParser:
             if constraints.platform is None:
                 constraints.platform = Platform.ARM64_NEON
 
-        if any(kw in query for kw in ["embedded", "iot", "constrained", "mcu"]):
+        if any(kw in query for kw in [
+            "embedded", "iot", "constrained", "mcu", "microcontroller",
+            "esp32", "arduino", "stm32", "rtos",
+        ]):
             constraints.is_embedded = True
             if constraints.platform is None:
                 constraints.platform = Platform.EMBEDDED
@@ -279,6 +293,20 @@ class QueryParser:
 
     def _apply_context_inference(self, query: str, constraints: Constraints) -> None:
         """Apply inference rules based on overall context."""
+        # Constrained/embedded context - prefer smaller algorithms
+        if constraints.is_embedded or any(
+            kw in query for kw in ["constrained", "limited memory", "low power", "small footprint"]
+        ):
+            # Lower security level is acceptable for IoT/embedded
+            constraints.min_security_level = SecurityLevel.LEVEL_1
+            constraints.prefer_smaller_keys = True
+            constraints.prefer_smaller_signatures = True
+            # Set reasonable size constraints for embedded
+            if constraints.max_public_key_bytes is None:
+                constraints.max_public_key_bytes = 2000
+            if constraints.max_ciphertext_bytes is None:
+                constraints.max_ciphertext_bytes = 1500
+
         # Financial context implies higher security
         if any(kw in query for kw in ["bank", "financial", "payment", "money", "transaction"]):
             if constraints.min_security_level.value < SecurityLevel.LEVEL_3.value:
