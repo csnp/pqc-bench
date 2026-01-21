@@ -14,9 +14,8 @@ particularly for key exchange (KEMs), since encrypted traffic can be
 captured and stored by adversaries.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 class ThreatUrgency(Enum):
@@ -317,8 +316,8 @@ class SNDLAssessment:
     urgency: ThreatUrgency
     years_margin: int  # Negative = already at risk
     risk_explanation: str
-    recommended_algorithm: Optional[str] = None
-    recommended_hybrid: Optional[str] = None
+    recommended_algorithm: str | None = None
+    recommended_hybrid: str | None = None
 
 
 def assess_sndl_risk(

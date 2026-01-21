@@ -17,7 +17,6 @@ Production-readiness factors:
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class ProductionReadiness(Enum):
@@ -45,8 +44,8 @@ class SecurityAudit:
     auditor: str
     date: str
     scope: str
-    report_url: Optional[str] = None
-    findings: Optional[str] = None
+    report_url: str | None = None
+    findings: str | None = None
 
 
 @dataclass
@@ -55,7 +54,7 @@ class LibraryCaveat:
 
     severity: str  # "critical", "warning", "info"
     description: str
-    source: Optional[str] = None
+    source: str | None = None
 
 
 @dataclass
@@ -84,10 +83,10 @@ class LibraryProfile:
     # Production readiness
     production_readiness: ProductionReadiness
     fips_status: FIPSStatus
-    fips_cert_number: Optional[str] = None
+    fips_cert_number: str | None = None
 
     # Algorithm support
-    algorithms: Optional[AlgorithmSupport] = None
+    algorithms: AlgorithmSupport | None = None
 
     # Security
     constant_time_verified: bool = False
@@ -100,7 +99,7 @@ class LibraryProfile:
 
     # Adoption
     notable_users: list[str] = field(default_factory=list)
-    github_stars: Optional[int] = None
+    github_stars: int | None = None
 
     # Recommendations
     recommended_for: list[str] = field(default_factory=list)
@@ -439,7 +438,7 @@ class HybridMode:
     tls_support: bool
     chrome_support: bool
     cloudflare_support: bool
-    ietf_draft: Optional[str]
+    ietf_draft: str | None
     recommended_until: str  # e.g., "2030" or "until pure PQC widely supported"
     caveats: list[str] = field(default_factory=list)
     libraries: list[str] = field(default_factory=list)  # Library IDs

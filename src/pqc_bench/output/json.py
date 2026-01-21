@@ -5,7 +5,6 @@ Provides machine-readable output with full recommendation details.
 """
 
 import json
-from dataclasses import asdict
 from typing import Any
 
 from ..core.engine import RecommendationResult

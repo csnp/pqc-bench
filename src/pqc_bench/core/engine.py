@@ -6,10 +6,9 @@ providing explanations for each recommendation.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
-from .constraints import Constraints, SecurityLevel, UseCase
 from ..data.algorithms import ALGORITHMS, AlgorithmProfile
+from .constraints import Constraints, UseCase
 
 
 @dataclass
@@ -55,7 +54,7 @@ class RecommendationResult:
     notes: list[str] = field(default_factory=list)
 
     @property
-    def primary(self) -> Optional[Recommendation]:
+    def primary(self) -> Recommendation | None:
         """Get the primary (top) recommendation."""
         return self.recommendations[0] if self.recommendations else None
 

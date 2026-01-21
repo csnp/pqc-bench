@@ -14,10 +14,8 @@ that never anticipated such sizes.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
-from .algorithms import ALGORITHMS, get_algorithm
-
+from .algorithms import get_algorithm
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CLASSICAL ALGORITHM BASELINE DATA
@@ -30,8 +28,8 @@ class ClassicalAlgorithmSizes:
 
     id: str
     public_key: int
-    signature: Optional[int] = None
-    shared_secret: Optional[int] = None
+    signature: int | None = None
+    shared_secret: int | None = None
 
 
 CLASSICAL_SIZES: dict[str, ClassicalAlgorithmSizes] = {

@@ -65,7 +65,7 @@ packages = ["src/pqc_bench"]
 
 [tool.ruff]
 target-version = "py310"
-line-length = 100
+line-length = 120
 
 [tool.ruff.lint]
 select = [
@@ -80,6 +80,8 @@ select = [
 ]
 ignore = [
     "S101",   # assert statements (OK in tests)
+    "S105",   # false positive for enum values like TOP_SECRET, SECRET
+    "E402",   # module level import not at top (intentional in __init__.py for DATA_VERSION)
 ]
 
 [tool.mypy]

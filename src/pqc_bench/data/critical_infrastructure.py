@@ -15,7 +15,6 @@ Based on real-world standards, regulations, and deployment constraints.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class Sector(Enum):
@@ -46,9 +45,9 @@ class RegulatoryFramework:
     name: str
     authority: str
     pqc_requirement: str  # "mandatory", "recommended", "none"
-    deadline: Optional[str] = None
+    deadline: str | None = None
     notes: str = ""
-    url: Optional[str] = None
+    url: str | None = None
 
 
 @dataclass
@@ -77,7 +76,7 @@ class SectorProfile:
 
     # Regulatory landscape
     regulations: list[RegulatoryFramework]
-    compliance_deadline: Optional[str] = None
+    compliance_deadline: str | None = None
 
     # Technical constraints
     constraints: list[TechnicalConstraint] = field(default_factory=list)
@@ -85,8 +84,8 @@ class SectorProfile:
     # Platform characteristics
     typical_platform: str = "x86_64"
     has_fpu: bool = True
-    max_latency_ms: Optional[float] = None
-    max_message_bytes: Optional[int] = None
+    max_latency_ms: float | None = None
+    max_message_bytes: int | None = None
     bandwidth_limited: bool = False
 
     # Crypto requirements
@@ -98,8 +97,8 @@ class SectorProfile:
     # Recommendations
     recommended_kem: str = "ML-KEM-768"
     recommended_sig: str = "ML-DSA-65"
-    recommended_hybrid_kem: Optional[str] = None
-    recommended_hybrid_sig: Optional[str] = None
+    recommended_hybrid_kem: str | None = None
+    recommended_hybrid_sig: str | None = None
 
     # Migration guidance
     migration_priority: list[str] = field(default_factory=list)
@@ -663,7 +662,7 @@ SECTOR_PROFILES: dict[str, SectorProfile] = {
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def get_sector_profile(sector_id: str) -> Optional[SectorProfile]:
+def get_sector_profile(sector_id: str) -> SectorProfile | None:
     """Get profile for a specific sector."""
     return SECTOR_PROFILES.get(sector_id)
 
@@ -683,7 +682,7 @@ def get_critical_sectors() -> list[SectorProfile]:
     return get_sectors_by_urgency(MigrationUrgency.CRITICAL)
 
 
-def detect_sector_from_query(query: str) -> Optional[SectorProfile]:
+def detect_sector_from_query(query: str) -> SectorProfile | None:
     """Detect sector from natural language query."""
     import re
 

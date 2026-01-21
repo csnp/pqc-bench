@@ -7,7 +7,6 @@ that drive algorithm recommendations.
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class Platform(Enum):
@@ -178,32 +177,32 @@ class Constraints:
     # PLATFORM CONSTRAINTS
     # ══════════════════════════════════════════════════════════════════
 
-    platform: Optional[Platform] = None
-    has_floating_point: Optional[bool] = None
-    max_memory_kb: Optional[int] = None
-    max_stack_kb: Optional[int] = None
+    platform: Platform | None = None
+    has_floating_point: bool | None = None
+    max_memory_kb: int | None = None
+    max_stack_kb: int | None = None
 
     # ══════════════════════════════════════════════════════════════════
     # PERFORMANCE CONSTRAINTS
     # ══════════════════════════════════════════════════════════════════
 
-    max_latency_ms: Optional[float] = None
-    operations_per_second: Optional[int] = None
+    max_latency_ms: float | None = None
+    operations_per_second: int | None = None
 
     # ══════════════════════════════════════════════════════════════════
     # SIZE CONSTRAINTS
     # ══════════════════════════════════════════════════════════════════
 
-    max_public_key_bytes: Optional[int] = None
-    max_private_key_bytes: Optional[int] = None
-    max_signature_bytes: Optional[int] = None
-    max_ciphertext_bytes: Optional[int] = None
+    max_public_key_bytes: int | None = None
+    max_private_key_bytes: int | None = None
+    max_signature_bytes: int | None = None
+    max_ciphertext_bytes: int | None = None
 
     # ══════════════════════════════════════════════════════════════════
     # CRYPTOGRAPHIC REQUIREMENTS
     # ══════════════════════════════════════════════════════════════════
 
-    use_case: Optional[UseCase] = None
+    use_case: UseCase | None = None
     needs_kem: bool = False
     needs_signature: bool = False
     needs_both: bool = False
@@ -242,7 +241,7 @@ class Constraints:
     prefer_faster_signing: bool = False
     prefer_faster_verification: bool = False
     hybrid_with_classical: bool = False
-    preferred_library: Optional[str] = None
+    preferred_library: str | None = None
 
     def infer_from_use_case(self) -> None:
         """Infer additional constraints from the use case if set."""

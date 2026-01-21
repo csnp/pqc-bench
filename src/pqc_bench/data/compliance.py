@@ -6,17 +6,16 @@ enabling automatic constraint inference from compliance contexts.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
 class TimelineRequirement:
     """Timeline for compliance adoption."""
 
-    prefer_by: Optional[int] = None  # Year to prefer PQC
-    require_by: Optional[int] = None  # Year PQC becomes mandatory
-    exclusive_by: Optional[int] = None  # Year classical is prohibited
-    notes: Optional[str] = None
+    prefer_by: int | None = None  # Year to prefer PQC
+    require_by: int | None = None  # Year PQC becomes mandatory
+    exclusive_by: int | None = None  # Year classical is prohibited
+    notes: str | None = None
 
 
 @dataclass
@@ -26,7 +25,7 @@ class AlgorithmRequirement:
     kem_algorithms: list[str] = field(default_factory=list)
     signature_algorithms: list[str] = field(default_factory=list)
     min_security_level: int = 3
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 @dataclass
@@ -39,7 +38,7 @@ class ComplianceFramework:
     url: str
     description: str
     requirements: AlgorithmRequirement
-    timeline: Optional[TimelineRequirement] = None
+    timeline: TimelineRequirement | None = None
     applies_to: list[str] = field(default_factory=list)
     citations: list[str] = field(default_factory=list)
 

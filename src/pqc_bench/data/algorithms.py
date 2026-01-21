@@ -6,7 +6,6 @@ compliance status, and implementation requirements with full citations.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
@@ -16,8 +15,8 @@ class AlgorithmNames:
     nist_fips: str
     nist_name: str
     legacy_name: str
-    oid: Optional[str] = None
-    tls_codepoint: Optional[int] = None
+    oid: str | None = None
+    tls_codepoint: int | None = None
 
 
 @dataclass
@@ -26,8 +25,8 @@ class SecurityCaveat:
 
     severity: str  # "info", "warning", "critical"
     description: str
-    mitigation: Optional[str] = None
-    reference: Optional[str] = None
+    mitigation: str | None = None
+    reference: str | None = None
 
 
 @dataclass
@@ -36,7 +35,7 @@ class Citation:
 
     title: str
     url: str
-    date: Optional[str] = None
+    date: str | None = None
 
 
 @dataclass
@@ -71,11 +70,11 @@ class PlatformPerformance:
 
     platform: str
     keygen_ops: int
-    encaps_ops: Optional[int] = None  # KEMs only
-    decaps_ops: Optional[int] = None
-    sign_ops: Optional[int] = None  # Signatures only
-    verify_ops: Optional[int] = None
-    methodology: Optional[BenchmarkMethodology] = None
+    encaps_ops: int | None = None  # KEMs only
+    decaps_ops: int | None = None
+    sign_ops: int | None = None  # Signatures only
+    verify_ops: int | None = None
+    methodology: BenchmarkMethodology | None = None
 
 
 @dataclass
@@ -84,9 +83,9 @@ class SizeProfile:
 
     public_key: int
     private_key: int
-    ciphertext: Optional[int] = None  # KEMs
-    signature: Optional[int] = None  # Signatures
-    comparison: Optional[str] = None  # Human-readable comparison
+    ciphertext: int | None = None  # KEMs
+    signature: int | None = None  # Signatures
+    comparison: str | None = None  # Human-readable comparison
 
 
 @dataclass
@@ -95,9 +94,9 @@ class FrameworkApproval:
 
     framework: str
     status: str  # "approved", "recommended", "pending", "not_approved"
-    level: Optional[str] = None
-    effective_date: Optional[str] = None
-    notes: Optional[str] = None
+    level: str | None = None
+    effective_date: str | None = None
+    notes: str | None = None
 
 
 @dataclass
@@ -106,7 +105,7 @@ class ComplianceProfile:
 
     nist_standardized: bool
     fips_validated: bool
-    fips_number: Optional[str] = None
+    fips_number: str | None = None
     approved_by: list[FrameworkApproval] = field(default_factory=list)
 
 
@@ -118,7 +117,7 @@ class Implementation:
     version: str
     platforms: list[str]
     fips_validated: bool = False
-    notes: Optional[str] = None
+    notes: str | None = None
 
 
 @dataclass
@@ -506,7 +505,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             caveats=[
                 SecurityCaveat(
                     severity="info",
-                    description="Level 2 security; adequate for authentication, consider Level 3 for long-term signatures",
+                    description="Level 2 security; adequate for auth, consider Level 3 for long-term signatures",
                 )
             ],
             citations=[

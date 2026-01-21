@@ -6,8 +6,8 @@ with intelligent inference of implicit requirements.
 """
 
 import re
-from typing import Optional
 
+from ..data.compliance import get_frameworks_for_context
 from .constraints import (
     ComplianceFramework,
     Constraints,
@@ -15,7 +15,6 @@ from .constraints import (
     SecurityLevel,
     UseCase,
 )
-from ..data.compliance import get_frameworks_for_context
 
 
 class QueryParser:

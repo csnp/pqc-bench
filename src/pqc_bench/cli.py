@@ -5,40 +5,37 @@ Provides natural language recommendations, algorithm details,
 comparisons, and migration guidance.
 """
 
-from typing import Optional
 
 import typer
 from rich.console import Console
 
 from . import __version__
-from .core.constraints import Constraints
 from .core.engine import RecommendationEngine
 from .core.parser import QueryParser
-from .data.algorithms import get_algorithm, get_algorithms_by_type, ALGORITHMS
+from .data.algorithms import ALGORITHMS, get_algorithm
 from .data.compliance import COMPLIANCE_FRAMEWORKS, get_framework
 from .data.libraries import (
-    LIBRARIES,
     HYBRID_MODES,
-    get_production_ready_libraries,
-    get_libraries_with_fips,
-    get_libraries_for_algorithm,
+    LIBRARIES,
     ProductionReadiness,
+    get_libraries_for_algorithm,
+    get_libraries_with_fips,
+    get_production_ready_libraries,
 )
 from .data.protocol_impact import (
+    analyze_certificate_chain,
     calculate_tls_kem_impact,
     calculate_tls_signature_impact,
-    analyze_certificate_chain,
     get_ossification_risks,
 )
 from .data.threat_model import (
     DATA_PROFILES,
     ThreatUrgency,
     assess_sndl_risk,
-    calculate_migration_priority,
     get_profiles_by_urgency,
 )
-from .output.terminal import TerminalOutput
 from .output.json import JsonOutput
+from .output.terminal import TerminalOutput
 
 app = typer.Typer(
     name="pqc-bench",
@@ -60,7 +57,7 @@ def version_callback(value: bool) -> None:
 
 @app.callback()
 def main(
-    version: Optional[bool] = typer.Option(
+    version: bool | None = typer.Option(
         None,
         "--version",
         "-v",
@@ -201,8 +198,8 @@ def compare(
     console.print()
 
     # Create comparison table
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
     table.add_column("Property", style="dim")
@@ -389,7 +386,7 @@ def migrate(
         console.print(f"[red]Unknown classical algorithm: {from_algo}[/red]")
         console.print()
         console.print("Supported classical algorithms:")
-        for key, val in migrations.items():
+        for _key, val in migrations.items():
             console.print(f"  • {val['name']}")
         raise typer.Exit(1)
 
@@ -407,8 +404,8 @@ def migrate(
     console.print()
 
     # Size comparison
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
     table.add_column("Property", style="dim")
@@ -442,12 +439,14 @@ def migrate(
     console.print("─" * 40)
 
     if classical["type"] == "signature":
-        console.print(f"  • JWT tokens will grow by ~{(pqc_algo.sizes.signature or 0) - classical['signature']:,} bytes")
-        console.print(f"  • Certificate chains will be significantly larger")
-        console.print(f"  • Signing/verification performance similar or better")
+        sig_diff = (pqc_algo.sizes.signature or 0) - classical["signature"]
+        console.print(f"  • JWT tokens will grow by ~{sig_diff:,} bytes")
+        console.print("  • Certificate chains will be significantly larger")
+        console.print("  • Signing/verification performance similar or better")
     else:
-        console.print(f"  • TLS handshake will transfer ~{(pqc_algo.sizes.ciphertext or 0) - classical['ciphertext']:,} more bytes")
-        console.print(f"  • Key exchange performance similar or better")
+        ct_diff = (pqc_algo.sizes.ciphertext or 0) - classical["ciphertext"]
+        console.print(f"  • TLS handshake will transfer ~{ct_diff:,} more bytes")
+        console.print("  • Key exchange performance similar or better")
 
     console.print()
 
@@ -480,7 +479,7 @@ def compliance(
         ...,
         help="Compliance framework (e.g., cnsa-2.0, fips-140-3, pci-dss)",
     ),
-    use_case: Optional[str] = typer.Option(
+    use_case: str | None = typer.Option(
         None,
         "--use-case",
         "-u",
@@ -580,7 +579,7 @@ def compliance(
 
 @app.command("list")
 def list_algorithms(
-    algorithm_type: Optional[str] = typer.Option(
+    algorithm_type: str | None = typer.Option(
         None,
         "--type",
         "-t",
@@ -603,8 +602,8 @@ def list_algorithms(
     console.print("═" * 60)
     console.print()
 
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
 
     table = Table(box=box.SIMPLE, show_header=True, header_style="bold")
     table.add_column("ID")
@@ -645,7 +644,7 @@ def libraries(
         "-f",
         help="Show only FIPS-validated libraries",
     ),
-    algorithm: Optional[str] = typer.Option(
+    algorithm: str | None = typer.Option(
         None,
         "--algorithm",
         "-a",
@@ -668,8 +667,8 @@ def libraries(
 
         pqc-bench libraries --algorithm ml-kem-768
     """
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
 
     console.print()
     console.print("[bold]Cryptographic Libraries for PQC[/bold]")
@@ -735,7 +734,7 @@ def libraries(
 
 @app.command()
 def hybrid(
-    use_case: Optional[str] = typer.Option(
+    use_case: str | None = typer.Option(
         None,
         "--use-case",
         "-u",
@@ -754,8 +753,6 @@ def hybrid(
 
         pqc-bench hybrid --use-case tls
     """
-    from rich.table import Table
-    from rich import box
 
     console.print()
     console.print("[bold]Hybrid Cryptography Modes[/bold]")
@@ -818,7 +815,7 @@ def hybrid(
 
 @app.command()
 def threat(
-    data_type: Optional[str] = typer.Option(
+    data_type: str | None = typer.Option(
         None,
         "--data-type",
         "-d",
@@ -830,7 +827,7 @@ def threat(
         "-l",
         help="List all data type profiles",
     ),
-    urgency: Optional[str] = typer.Option(
+    urgency: str | None = typer.Option(
         None,
         "--urgency",
         "-u",
@@ -852,8 +849,8 @@ def threat(
 
         pqc-bench threat --urgency critical
     """
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
 
     console.print()
     console.print("[bold]SNDL Threat Assessment[/bold]")
@@ -998,8 +995,8 @@ def impact(
 
         pqc-bench impact ml-dsa-65 --chain-length 4
     """
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
 
     algo = get_algorithm(algorithm)
     if not algo:
@@ -1125,7 +1122,7 @@ def impact(
 
 @app.command()
 def sector(
-    sector_name: Optional[str] = typer.Argument(
+    sector_name: str | None = typer.Argument(
         None,
         help="Sector to analyze (space, automotive, industrial, energy, healthcare, financial, telecom)",
     ),
@@ -1159,14 +1156,14 @@ def sector(
 
         pqc-bench sector --deadlines
     """
-    from rich.table import Table
     from rich import box
+    from rich.table import Table
 
     from .data.critical_infrastructure import (
         SECTOR_PROFILES,
         MigrationUrgency,
-        get_sector_profile,
         get_compliance_deadlines,
+        get_sector_profile,
     )
 
     console.print()
