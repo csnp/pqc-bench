@@ -395,7 +395,11 @@ pqc-bench libraries
 For sensitive data, understand your threat timeline:
 
 ```bash
-pqc-bench threat --data-type "customer PII" --retention "10 years"
+# List the data profiles and how long each must stay protected
+pqc-bench threat --list
+
+# Assess one profile
+pqc-bench threat --data-type financial_long_term
 ```
 
 ### 5. Plan for Your Industry

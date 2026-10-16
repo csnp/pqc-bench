@@ -74,10 +74,10 @@ $ pqc-bench recommend "e-commerce platform with payment processing, TLS, JWT aut
 $ pqc-bench compliance pci-dss
 
 # Understand TLS impact
-$ pqc-bench impact ml-kem-768 --protocol tls
+$ pqc-bench impact ml-kem-768
 
 # Check library options
-$ pqc-bench libraries --fips-only
+$ pqc-bench libraries --fips
 ```
 
 **Recommended Approach:**
@@ -227,8 +227,8 @@ $ pqc-bench sector industrial
 # Consumer IoT
 $ pqc-bench recommend "smart home device, cloud connected, cost sensitive"
 
-# Check threat timeline
-$ pqc-bench threat --data-type "home automation data" --retention "5 years"
+# Compare threat timelines across data profiles
+$ pqc-bench threat --list
 ```
 
 **Recommended Approach:**
@@ -285,7 +285,7 @@ $ pqc-bench explain ml-kem-768
 $ pqc-bench recommend "enterprise PKI, certificate authority, 5-year certificates"
 
 # Check certificate impact
-$ pqc-bench impact ml-dsa-65 --protocol tls
+$ pqc-bench impact ml-dsa-65
 
 # Library HSM support
 $ pqc-bench libraries
@@ -382,7 +382,7 @@ $ pqc-bench recommend "electronic health records, HIPAA, 50 year retention"
 $ pqc-bench sector healthcare
 
 # Assess SNDL risk
-$ pqc-bench threat --data-type "patient health records" --retention "50 years"
+$ pqc-bench threat --data-type healthcare_records
 ```
 
 **Recommended Approach:**

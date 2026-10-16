@@ -48,10 +48,10 @@ pqc-bench sector healthcare
 ```bash
 # Try some queries
 pqc-bench recommend "mobile banking app"
-# → ML-KEM-768 for key exchange, ML-DSA-65 for signatures
+# → ML-KEM-1024 (FIPS 203, NIST Level 5)
 
 pqc-bench recommend "embedded sensor with 256KB RAM"
-# → ML-KEM-512 (smallest NIST-approved KEM)
+# → ML-KEM-768 (FIPS 203, NIST Level 3)
 
 pqc-bench threat --data-type healthcare_records
 # → ⚠ AT RISK
@@ -68,16 +68,20 @@ Ask in plain English, get specific answers with reasoning:
 ```bash
 $ pqc-bench recommend "REST API with JWT auth, running on AWS Lambda"
 
-╭─ Recommendation ─────────────────────────────────────────────────────────────╮
-│ ML-DSA-44 (FIPS 204)                                                         │
+╭────────────────────────── PQC-Bench Recommendation ──────────────────────────╮
+│ ML-DSA-87  (FIPS 204)                                                        │
 │                                                                              │
-│ Why this algorithm:                                                          │
-│ • Fast signing/verification for API workloads                                │
-│ • NIST standardized with constant-time implementation                        │
-│ • Excellent AWS-LC support for Lambda                                        │
-│ • Level 2 security appropriate for authentication tokens                     │
+│ Security     NIST Level 5 (256-bit)                                          │
+│ Signature    4,627 bytes                                                     │
+│ Public Key   2,592 bytes                                                     │
 │                                                                              │
-│ Signature: 2,420 bytes | Verify: ~0.03ms on x86_64                          │
+│ ✓ NIST standardized (FIPS 204)                                               │
+│ ✓ Strong security (NIST Level 5)                                             │
+│ ✓ Constant-time implementation (side-channel resistant)                      │
+│ ✓ Optimized for x86_64_avx2                                                  │
+│                                                                              │
+│ ⚠ Large signatures (4627 bytes)                                              │
+│                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
 
