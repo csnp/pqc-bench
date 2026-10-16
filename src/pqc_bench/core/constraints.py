@@ -270,7 +270,7 @@ class Constraints:
 
         if ComplianceFramework.CNSA_2_0 in self.compliance_frameworks:
             self.requires_nist_standardized = True
-            self.min_security_level = SecurityLevel.LEVEL_3
+            self.min_security_level = SecurityLevel.LEVEL_5
 
         if ComplianceFramework.FEDRAMP in self.compliance_frameworks:
             self.requires_fips_validated = True

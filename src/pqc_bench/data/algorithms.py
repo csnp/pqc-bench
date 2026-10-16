@@ -318,10 +318,8 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
                 ),
                 FrameworkApproval(
                     framework="CNSA 2.0",
-                    status="approved",
-                    level="Secret",
-                    effective_date="2025",
-                    notes="Recommended for all key establishment",
+                    status="not_approved",
+                    notes="CNSA 2.0 uses Level V (ML-KEM-1024) for all classification levels",
                 ),
             ],
         ),
@@ -380,7 +378,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         notes=[
             "Recommended default for most applications",
             "Best security/performance balance",
-            "CNSA 2.0 approved",
+            "Not part of CNSA 2.0, which uses ML-KEM-1024",
         ],
     ),
     "ml-kem-1024": AlgorithmProfile(
@@ -428,7 +426,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
                 FrameworkApproval(
                     framework="CNSA 2.0",
                     status="approved",
-                    level="Top Secret",
+                    level="All classification levels",
                     effective_date="2025",
                 ),
             ],
@@ -479,7 +477,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         ),
         notes=[
             "Highest security ML-KEM variant",
-            "For long-term secrets and Top Secret classification",
+            "For long-term secrets; the CNSA 2.0 parameter set for all classification levels",
         ],
     ),
     # ══════════════════════════════════════════════════════════════════════════
@@ -614,9 +612,8 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
                 ),
                 FrameworkApproval(
                     framework="CNSA 2.0",
-                    status="approved",
-                    level="Secret",
-                    effective_date="2025",
+                    status="not_approved",
+                    notes="CNSA 2.0 uses Level V (ML-DSA-87) for all classification levels",
                 ),
             ],
         ),
@@ -666,7 +663,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         ),
         notes=[
             "Recommended default for most signature use cases",
-            "CNSA 2.0 approved",
+            "Not part of CNSA 2.0, which uses ML-DSA-87",
             "Good balance of security and performance",
         ],
     ),
@@ -713,7 +710,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
                 FrameworkApproval(
                     framework="CNSA 2.0",
                     status="approved",
-                    level="Top Secret",
+                    level="All classification levels",
                     effective_date="2025",
                 ),
             ],
@@ -764,7 +761,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         ),
         notes=[
             "Highest security ML-DSA variant",
-            "For Top Secret classification",
+            "The CNSA 2.0 parameter set for all classification levels",
             "Consider bandwidth impact of larger signatures",
         ],
     ),

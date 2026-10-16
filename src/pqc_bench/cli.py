@@ -540,7 +540,7 @@ def compliance(
             if algo:
                 console.print(f"    • {algo.names.nist_name}")
             else:
-                console.print(f"    • {algo_id}")
+                console.print(f"    • {algo_id.upper()}")
 
     console.print(f"  [dim]Minimum Security Level:[/dim] NIST Level {fw.requirements.min_security_level}")
 
@@ -558,6 +558,12 @@ def compliance(
             console.print(f"  • Require PQC by: {fw.timeline.require_by}")
         if fw.timeline.exclusive_by:
             console.print(f"  • Exclusive PQC by: {fw.timeline.exclusive_by}")
+        if fw.timeline.complete_by:
+            console.print(f"  • Transition complete by: {fw.timeline.complete_by}")
+        if fw.timeline.categories:
+            console.print("  [dim]By category (prefer by / exclusive by):[/dim]")
+            for cat in fw.timeline.categories:
+                console.print(f"    • {cat.category}: {cat.prefer_by} / {cat.exclusive_by}")
         if fw.timeline.notes:
             console.print(f"  [dim]{fw.timeline.notes}[/dim]")
         console.print()
@@ -795,7 +801,7 @@ def hybrid(
             console.print("  [dim]Browser/CDN support:[/dim] [yellow]Not yet[/yellow]")
 
         if mode.ietf_draft:
-            console.print(f"  [dim]IETF Draft:[/dim] {mode.ietf_draft}")
+            console.print(f"  [dim]IETF reference:[/dim] {mode.ietf_draft}")
 
         console.print(f"  [dim]Recommended until:[/dim] {mode.recommended_until}")
 
@@ -808,7 +814,7 @@ def hybrid(
     console.print("[bold]Why Hybrid?[/bold]")
     console.print("─" * 40)
     console.print("  1. PQC algorithms are newer; hybrid provides insurance")
-    console.print("  2. X25519Kyber768 is already deployed in Chrome/Cloudflare")
+    console.print("  2. X25519MLKEM768 is deployed in Chrome (since Chrome 131) and Cloudflare")
     console.print("  3. NIST and NSA recommend hybrid during transition period")
     console.print()
 

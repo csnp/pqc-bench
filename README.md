@@ -196,7 +196,7 @@ TLS Handshake Impact:
 
 | Mode | Components | Deployed In |
 |------|------------|-------------|
-| X25519Kyber768 | X25519 + ML-KEM-768 | Chrome, Cloudflare, AWS |
+| X25519MLKEM768 | X25519 + ML-KEM-768 | Chrome, Cloudflare, AWS |
 | ECDSA-P256+ML-DSA-44 | ECDSA + ML-DSA | Certificate chains |
 
 ---
@@ -288,7 +288,7 @@ Learn more at [qramm.org](https://qramm.org) and [csnp.org](https://csnp.org).
 
 ### Additional Resources
 
-- [NSA CNSA 2.0 Algorithm Guidance](https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF)
+- [NSA CNSA 2.0 Algorithm Guidance](https://media.defense.gov/2025/May/30/2003728741/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS.PDF)
 - [CISA Post-Quantum Cryptography Initiative](https://www.cisa.gov/quantum)
 - [NIST Post-Quantum Cryptography Project](https://csrc.nist.gov/projects/post-quantum-cryptography)
 

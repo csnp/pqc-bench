@@ -65,7 +65,7 @@ class AlgorithmSupport:
     ml_dsa: list[str]
     slh_dsa: list[str]
     falcon: list[str]
-    hybrid_kem: list[str]  # e.g., ["X25519Kyber768"]
+    hybrid_kem: list[str]  # TLS group names, e.g., ["X25519MLKEM768"]
     hybrid_sig: list[str]  # e.g., ["ECDSA_P256+ML-DSA-44"]
 
 
@@ -129,7 +129,7 @@ LIBRARIES: dict[str, LibraryProfile] = {
             ml_dsa=["44", "65", "87"],
             slh_dsa=[],
             falcon=[],
-            hybrid_kem=["X25519Kyber768Draft00"],
+            hybrid_kem=["X25519MLKEM768"],
             hybrid_sig=[],
         ),
         constant_time_verified=True,
@@ -177,7 +177,7 @@ LIBRARIES: dict[str, LibraryProfile] = {
             ml_dsa=[],
             slh_dsa=[],
             falcon=[],
-            hybrid_kem=["X25519Kyber768Draft00"],
+            hybrid_kem=["X25519MLKEM768"],
             hybrid_sig=[],
         ),
         constant_time_verified=True,
@@ -190,7 +190,7 @@ LIBRARIES: dict[str, LibraryProfile] = {
             ),
             LibraryCaveat(
                 severity="info",
-                description="Limited algorithm support - only X25519Kyber768 hybrid KEM",
+                description="Limited algorithm support - X25519MLKEM768 is the only hybrid KEM",
             ),
         ],
         platforms=["linux", "macos", "windows", "android", "ios"],
@@ -220,7 +220,7 @@ LIBRARIES: dict[str, LibraryProfile] = {
             ml_dsa=["44", "65", "87"],
             slh_dsa=[],
             falcon=[],
-            hybrid_kem=[],
+            hybrid_kem=["X25519MLKEM768"],
             hybrid_sig=[],
         ),
         constant_time_verified=True,
@@ -357,7 +357,7 @@ LIBRARIES: dict[str, LibraryProfile] = {
             ml_dsa=["44", "65", "87"],
             slh_dsa=[],
             falcon=[],
-            hybrid_kem=["ECDHE_Kyber"],
+            hybrid_kem=["X25519MLKEM768"],
             hybrid_sig=[],
         ),
         constant_time_verified=True,
@@ -445,24 +445,25 @@ class HybridMode:
 
 
 HYBRID_MODES: dict[str, HybridMode] = {
-    "x25519-kyber768": HybridMode(
-        id="x25519-kyber768",
-        name="X25519Kyber768",
-        description="X25519 ECDH + ML-KEM-768 hybrid key exchange",
+    "x25519-mlkem768": HybridMode(
+        id="x25519-mlkem768",
+        name="X25519MLKEM768",
+        description="X25519 ECDH + ML-KEM-768 hybrid key exchange (TLS group 4588)",
         classical_algorithm="X25519",
         pqc_algorithm="ML-KEM-768",
         kem_or_sig="kem",
-        combined_size=1184 + 32,  # ML-KEM-768 + X25519
+        combined_size=1184 + 32,  # Client key share: ML-KEM-768 + X25519
         tls_support=True,
         chrome_support=True,
         cloudflare_support=True,
-        ietf_draft="draft-ietf-tls-hybrid-design",
+        ietf_draft="RFC 10024",
         recommended_until="Until pure PQC is widely trusted (2030+)",
         caveats=[
             "Slightly larger TLS handshake",
             "Both algorithms must be secure for security to hold",
+            "Chrome has used this group since Chrome 131, replacing the draft Kyber group",
         ],
-        libraries=["boringssl", "aws-lc", "openssl-3.5"],
+        libraries=["boringssl", "aws-lc", "openssl-3.5", "wolfssl"],
     ),
     "ecdsa-p256-mldsa44": HybridMode(
         id="ecdsa-p256-mldsa44",
@@ -498,7 +499,7 @@ HYBRID_MODES: dict[str, HybridMode] = {
         recommended_until="Until pure PQC widely trusted",
         caveats=[
             "Large combined signature size",
-            "Matches CNSA 2.0 security requirements",
+            "Does not meet CNSA 2.0, which uses ML-DSA-87 (Level V)",
         ],
         libraries=["aws-lc"],
     ),
@@ -562,7 +563,7 @@ def get_hybrid_mode(hybrid_id: str) -> HybridMode | None:
 
 def get_recommended_hybrid_for_kem() -> HybridMode:
     """Get the recommended hybrid KEM mode."""
-    return HYBRID_MODES["x25519-kyber768"]
+    return HYBRID_MODES["x25519-mlkem768"]
 
 
 def get_hybrid_modes_for_use_case(use_case: str) -> list[HybridMode]:
@@ -572,8 +573,8 @@ def get_hybrid_modes_for_use_case(use_case: str) -> list[HybridMode]:
     if any(
         kw in use_case_lower for kw in ["tls", "https", "web", "browser"]
     ):
-        # TLS: X25519Kyber768 is the only one with browser support
-        return [HYBRID_MODES["x25519-kyber768"]]
+        # TLS: X25519MLKEM768 is the only one with browser support
+        return [HYBRID_MODES["x25519-mlkem768"]]
 
     if any(
         kw in use_case_lower for kw in ["certificate", "signing", "code signing"]
@@ -585,4 +586,4 @@ def get_hybrid_modes_for_use_case(use_case: str) -> list[HybridMode]:
         ]
 
     # Default: return KEM hybrid
-    return [HYBRID_MODES["x25519-kyber768"]]
+    return [HYBRID_MODES["x25519-mlkem768"]]

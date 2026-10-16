@@ -352,16 +352,18 @@ pqc-bench explain slh-dsa-128f
 
 Hybrid cryptography combines classical and post-quantum algorithms for defense-in-depth.
 
-### X25519Kyber768
+### X25519MLKEM768
 
 **Components:** X25519 (classical) + ML-KEM-768 (PQC)
 
+TLS supported group 4588 (0x11EC), defined in RFC 10024. The two shared secrets are concatenated, ML-KEM-768 first, and the result enters the TLS 1.3 key schedule:
+
 ```
-Shared Secret = HKDF(X25519_shared || ML-KEM-768_shared)
+Shared Secret = ML-KEM-768_shared || X25519_shared
 ```
 
 **Deployed in:**
-- Chrome/Chromium browsers
+- Chrome/Chromium browsers (since Chrome 131, replacing the draft Kyber group 0x6399)
 - Cloudflare edge
 - AWS TLS
 

@@ -46,7 +46,7 @@ $ pqc-bench libraries --fips-only
 ```
 
 **Recommended Approach:**
-1. Use **ML-KEM-768** for TLS key exchange (via X25519Kyber768 hybrid)
+1. Use **ML-KEM-768** for TLS key exchange (via X25519MLKEM768 hybrid)
 2. Use **ML-DSA-65** for JWT signing
 3. Deploy with AWS-LC or BoringSSL for production
 4. Plan migration timeline based on PCI-DSS updates

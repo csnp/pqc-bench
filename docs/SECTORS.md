@@ -80,7 +80,7 @@ pqc-bench sector space
 |------|-----------|-----------|
 | KEM | ML-KEM-1024 | Highest security for long missions |
 | Signature | ML-DSA-87 | CNSA 2.0 Level 5 required |
-| Hybrid | X25519Kyber768 | Ground segment only |
+| Hybrid | X25519MLKEM768 | Ground segment only |
 
 ### Migration Priority
 
@@ -141,7 +141,7 @@ pqc-bench sector automotive
 |------|-----------|-----------|
 | KEM | ML-KEM-512 | Smallest for latency |
 | Signature | ML-DSA-44 | Fastest signing |
-| Hybrid KEM | X25519Kyber768 | Cloud/telematics |
+| Hybrid KEM | X25519MLKEM768 | Cloud/telematics |
 | Hybrid Sig | ECDSA-P256+ML-DSA-44 | Dual-signed certs |
 
 ### Migration Priority
@@ -440,7 +440,7 @@ pqc-bench sector telecom
 |------|-----------|-----------|
 | KEM | ML-KEM-768 | Standard security |
 | Signature | ML-DSA-65 | Standard security |
-| Hybrid | X25519Kyber768 | 5G core |
+| Hybrid | X25519MLKEM768 | 5G core |
 
 ### Migration Priority
 
@@ -474,8 +474,8 @@ pqc-bench sector --deadlines
 |------|--------|-----------|-------------|
 | **2025** | Financial | DORA | ICT risk mitigation |
 | **2030** | Healthcare | NIST | Classical crypto deprecated |
-| **2030** | Government | CNSA 2.0 | Prefer PQC for new systems |
-| **2033** | Government | CNSA 2.0 | Exclusive PQC required |
+| **2030** | Government | CNSA 2.0 | Exclusive PQC for software signing and networking equipment |
+| **2033** | Government | CNSA 2.0 | Exclusive PQC for browsers, servers, cloud and operating systems |
 | **2035** | Federal | NSM-10 | Complete PQC migration |
 
 ---

@@ -364,7 +364,7 @@ def assess_sndl_risk(
 
     if "kem" in profile.cryptographic_needs:
         if profile.urgency in [ThreatUrgency.CRITICAL, ThreatUrgency.HIGH]:
-            recommended_hybrid = "X25519Kyber768"
+            recommended_hybrid = "X25519MLKEM768"
             recommended_algo = "ML-KEM-768"
         else:
             recommended_algo = "ML-KEM-768"

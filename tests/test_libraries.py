@@ -92,15 +92,15 @@ class TestHybridModes:
 
     def test_get_hybrid_mode(self) -> None:
         """Should retrieve hybrid mode by ID."""
-        mode = get_hybrid_mode("x25519-kyber768")
+        mode = get_hybrid_mode("x25519-mlkem768")
         assert mode is not None
         assert mode.classical_algorithm == "X25519"
         assert mode.pqc_algorithm == "ML-KEM-768"
 
     def test_recommended_hybrid_for_kem(self) -> None:
-        """Should recommend X25519Kyber768 for KEM."""
+        """Should recommend X25519MLKEM768 for KEM."""
         mode = get_recommended_hybrid_for_kem()
-        assert mode.id == "x25519-kyber768"
+        assert mode.id == "x25519-mlkem768"
         assert mode.chrome_support is True
         assert mode.cloudflare_support is True
 
@@ -108,8 +108,8 @@ class TestHybridModes:
         """Should return appropriate hybrid modes for TLS."""
         modes = get_hybrid_modes_for_use_case("tls")
         assert len(modes) > 0
-        # X25519Kyber768 should be recommended for TLS
-        assert any(m.id == "x25519-kyber768" for m in modes)
+        # X25519MLKEM768 should be recommended for TLS
+        assert any(m.id == "x25519-mlkem768" for m in modes)
 
     def test_hybrid_modes_for_certificates(self) -> None:
         """Should return signature hybrids for certificates."""
@@ -121,14 +121,14 @@ class TestHybridModes:
 
     def test_hybrid_mode_has_combined_size(self) -> None:
         """Hybrid modes should have combined size calculated."""
-        mode = get_hybrid_mode("x25519-kyber768")
+        mode = get_hybrid_mode("x25519-mlkem768")
         assert mode is not None
         # Should be ML-KEM-768 public key + X25519 public key
         assert mode.combined_size > 1000  # More than 1KB
 
     def test_hybrid_mode_has_library_support(self) -> None:
         """Hybrid modes should list supporting libraries."""
-        mode = get_hybrid_mode("x25519-kyber768")
+        mode = get_hybrid_mode("x25519-mlkem768")
         assert mode is not None
         assert len(mode.libraries) > 0
         # BoringSSL and AWS-LC should support it
