@@ -84,6 +84,46 @@ class TestQueryParser:
         assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
         assert constraints.min_security_level == SecurityLevel.LEVEL_5
 
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "blockchain transaction signing",
+            "store API secrets in a vault",
+            "defense in depth for a web server",
+            "derive a shared secret for session keys",
+            "unclassified internal reporting tool",
+        ],
+    )
+    def test_cnsa_not_inferred_from_words_containing_keywords(
+        self, parser: QueryParser, query: str
+    ) -> None:
+        """CNSA 2.0 keywords inside other words or phrases do not select CNSA 2.0."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.CNSA_2_0 not in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_3
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "NSA approved key exchange",
+            "top secret document storage",
+            "national security system messaging",
+            "classified network VPN",
+        ],
+    )
+    def test_cnsa_inferred_from_whole_words(self, parser: QueryParser, query: str) -> None:
+        """Naming CNSA, the NSA or classified systems selects CNSA 2.0."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_5
+
+    def test_embedded_context_keeps_cnsa_level_5(self, parser: QueryParser) -> None:
+        """The embedded Level 1 floor does not lower the CNSA 2.0 Level 5 floor."""
+        constraints = parser.parse("CNSA 2.0 embedded sensor with 256KB RAM")
+        assert constraints.is_embedded is True
+        assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_5
+
     def test_parse_high_security(self, parser: QueryParser) -> None:
         """High security keywords should set Level 5."""
         constraints = parser.parse("need maximum security level 5")

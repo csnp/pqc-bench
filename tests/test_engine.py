@@ -1,8 +1,12 @@
 """Tests for the recommendation engine."""
 
+from dataclasses import replace
+
 import pytest
 
 from pqc_bench.core.engine import RecommendationEngine
+from pqc_bench.core.parser import QueryParser
+from pqc_bench.data.algorithms import ALGORITHMS, AlgorithmProfile
 from pqc_bench.core.constraints import (
     Constraints,
     Platform,
@@ -295,3 +299,93 @@ class TestTLSAndConstrainedDevices:
         )
         weights = engine._adjust_weights(constraints)
         assert weights["size"] > engine.DEFAULT_WEIGHTS["size"]
+
+
+class TestComplianceScoring:
+    """The compliance factor counts approvals from the required frameworks only."""
+
+    @pytest.fixture
+    def engine(self) -> RecommendationEngine:
+        return RecommendationEngine()
+
+    @staticmethod
+    def _with_cnsa_approved(algorithm_id: str) -> AlgorithmProfile:
+        """Copy of an algorithm whose CNSA 2.0 entry is set to approved."""
+        algo = ALGORITHMS[algorithm_id]
+        approvals = [
+            replace(a, status="approved") if a.framework == "CNSA 2.0" else a
+            for a in algo.compliance.approved_by
+        ]
+        return replace(algo, compliance=replace(algo.compliance, approved_by=approvals))
+
+    def test_unrequested_framework_does_not_change_score(
+        self, engine: RecommendationEngine
+    ) -> None:
+        constraints = Constraints(
+            needs_kem=True,
+            compliance_frameworks=[ComplianceFramework.PCI_DSS],
+        )
+        original = ALGORITHMS["ml-kem-768"]
+        modified = self._with_cnsa_approved("ml-kem-768")
+        assert engine._score_compliance(modified, constraints) == engine._score_compliance(
+            original, constraints
+        )
+
+    def test_requested_framework_approval_counts(self, engine: RecommendationEngine) -> None:
+        constraints = Constraints(
+            needs_kem=True,
+            compliance_frameworks=[ComplianceFramework.CNSA_2_0],
+        )
+        approved = engine._score_compliance(ALGORITHMS["ml-kem-1024"], constraints)
+        not_approved = engine._score_compliance(ALGORITHMS["ml-kem-768"], constraints)
+        assert approved > not_approved
+
+
+class TestScoreRange:
+    """Scores stay within 0-100 whatever the context weights."""
+
+    @pytest.fixture
+    def engine(self) -> RecommendationEngine:
+        return RecommendationEngine()
+
+    @pytest.mark.parametrize(
+        "constraints",
+        [
+            Constraints(),
+            Constraints(is_embedded=True, prefer_smaller_signatures=True),
+            Constraints(
+                is_embedded=True,
+                is_high_volume=True,
+                prefer_smaller_signatures=True,
+                compliance_frameworks=[ComplianceFramework.CNSA_2_0],
+            ),
+        ],
+    )
+    def test_weights_sum_to_one(
+        self, engine: RecommendationEngine, constraints: Constraints
+    ) -> None:
+        assert sum(engine._adjust_weights(constraints).values()) == pytest.approx(1.0)
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "CNSA 2.0 embedded sensor with 256KB RAM",
+            "embedded sensor with 256KB RAM",
+            "HIPAA embedded medical device firmware signing",
+        ],
+    )
+    def test_scores_at_most_100(self, engine: RecommendationEngine, query: str) -> None:
+        constraints = QueryParser().parse(query)
+        result = engine.recommend(constraints, query=query, top_n=len(ALGORITHMS))
+        assert result.recommendations
+        for rec in result.recommendations + result.alternatives:
+            assert 0 <= rec.score <= 100, f"{rec.algorithm.id}: {rec.score}"
+
+
+def test_cnsa_embedded_query_recommends_only_cnsa_algorithms() -> None:
+    """A CNSA 2.0 query for a constrained device keeps the Level 5 parameter sets."""
+    query = "CNSA 2.0 embedded sensor with 256KB RAM"
+    result = RecommendationEngine().recommend(QueryParser().parse(query), query=query, top_n=5)
+    recommended = {r.algorithm.id for r in result.recommendations + result.alternatives}
+    assert recommended == {"ml-kem-1024", "ml-dsa-87"}
+    assert any("CNSA 2.0" in note for note in result.notes)

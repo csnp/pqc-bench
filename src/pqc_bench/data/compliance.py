@@ -5,6 +5,7 @@ Maps industry standards and regulations to algorithm requirements,
 enabling automatic constraint inference from compliance contexts.
 """
 
+import re
 from dataclasses import dataclass, field
 
 
@@ -219,9 +220,33 @@ COMPLIANCE_FRAMEWORKS: dict[str, ComplianceFramework] = {
 }
 
 
+# Short names accepted in addition to the framework IDs.
+FRAMEWORK_ALIASES: dict[str, str] = {
+    "pci_dss": "pci_dss_4",
+}
+
+# Terms that name CNSA 2.0 or the classified and national security systems it
+# covers. They are matched as whole words, because "nsa" also occurs inside
+# "transaction" and "classified" inside "unclassified".
+CNSA_2_0_KEYWORDS: list[str] = [
+    "cnsa",
+    "nsa",
+    "classified",
+    "top secret",
+    "national security",
+]
+
+
+def contains_phrase(text: str, phrase: str) -> bool:
+    """Whether ``phrase`` occurs in ``text`` as whole words, not inside a longer word."""
+    pattern = rf"(?<![a-z0-9]){re.escape(phrase.lower())}(?![a-z0-9])"
+    return re.search(pattern, text.lower()) is not None
+
+
 def get_framework(framework_id: str) -> ComplianceFramework | None:
-    """Get compliance framework by ID."""
-    return COMPLIANCE_FRAMEWORKS.get(framework_id.lower().replace("-", "_").replace(".", "_"))
+    """Get compliance framework by ID or alias (e.g. "cnsa-2.0", "pci-dss")."""
+    key = framework_id.lower().replace("-", "_").replace(".", "_")
+    return COMPLIANCE_FRAMEWORKS.get(FRAMEWORK_ALIASES.get(key, key))
 
 
 def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:
@@ -239,7 +264,7 @@ def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:
     applicable = []
 
     keyword_mapping = {
-        "cnsa_2_0": ["government", "defense", "classified", "nsa", "military", "secret"],
+        "cnsa_2_0": CNSA_2_0_KEYWORDS,
         "fips_140_3": ["federal", "government", "fips", "nist"],
         "pci_dss_4": [
             "payment",
@@ -255,7 +280,11 @@ def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:
     }
 
     for framework_id, keywords in keyword_mapping.items():
-        if any(kw in context_lower for kw in keywords):
+        if framework_id == "cnsa_2_0":
+            matched = any(contains_phrase(context_lower, kw) for kw in keywords)
+        else:
+            matched = any(kw in context_lower for kw in keywords)
+        if matched:
             framework = COMPLIANCE_FRAMEWORKS.get(framework_id)
             if framework:
                 applicable.append(framework)

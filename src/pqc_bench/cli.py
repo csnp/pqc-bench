@@ -131,7 +131,9 @@ def recommend(
     # Output
     if json_output:
         json_formatter = JsonOutput()
-        console.print(json_formatter.format(result))
+        # typer.echo writes the document unchanged; console.print would wrap
+        # long lines at the console width and break the JSON.
+        typer.echo(json_formatter.format(result))
     else:
         terminal.print_recommendation(result, verbose=verbose)
 

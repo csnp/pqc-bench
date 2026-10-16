@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 
 from pqc_bench.cli import app
 from pqc_bench.data.algorithms import get_algorithm
-from pqc_bench.data.compliance import get_framework
+from pqc_bench.data.compliance import get_framework, get_frameworks_for_context
 
 # NSA Cybersecurity Advisory PP-22-1338, "Announcing the Commercial National
 # Security Algorithm Suite 2.0", as posted at this address in May 2025.
@@ -94,6 +94,25 @@ def test_compliance_command_accepts_documented_name() -> None:
     assert "XMSS" in result.output
     assert "Transition complete by: 2035" in result.output
     assert "Operating systems: 2027 / 2033" in result.output
+
+
+def test_compliance_command_accepts_pci_dss() -> None:
+    """`pqc-bench compliance pci-dss` (help text and docs) shows PCI DSS 4.0."""
+    assert get_framework("pci-dss") is get_framework("pci_dss_4")
+    result = CliRunner().invoke(app, ["compliance", "pci-dss"])
+    assert result.exit_code == 0
+    assert "PCI DSS 4.0" in result.output
+
+
+def test_context_inference_matches_cnsa_terms_as_whole_words() -> None:
+    def inferred(context: str) -> list[str]:
+        return [fw.id for fw in get_frameworks_for_context(context)]
+
+    assert "cnsa_2_0" not in inferred("blockchain transaction signing")
+    assert "cnsa_2_0" not in inferred("store API secrets in a vault")
+    assert "cnsa_2_0" not in inferred("defense in depth for a web server")
+    assert "cnsa_2_0" in inferred("NSA approved key exchange")
+    assert "cnsa_2_0" in inferred("CNSA 2.0 required")
 
 
 class TestCNSA20AlgorithmApprovals:

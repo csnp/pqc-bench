@@ -5,10 +5,16 @@ Scores and ranks algorithms based on user constraints,
 providing explanations for each recommendation.
 """
 
+import re
 from dataclasses import dataclass, field
 
 from ..data.algorithms import ALGORITHMS, AlgorithmProfile
-from .constraints import Constraints, UseCase
+from .constraints import ComplianceFramework, Constraints, SecurityLevel, UseCase
+
+
+def _framework_id(name: str) -> str:
+    """Normalize a framework name such as "FIPS 140-3" to its ID ("fips_140_3")."""
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
 
 
 @dataclass
@@ -307,7 +313,9 @@ class RecommendationEngine:
             weights["size"] = 0.25
             weights["implementation"] = 0.15
 
-        return weights
+        # Rescale so the weights sum to 1 and the total score stays within 0-100
+        total = sum(weights.values())
+        return {name: weight / total for name, weight in weights.items()}
 
     def _score_security(self, algo: AlgorithmProfile, constraints: Constraints) -> float:
         """Score security properties."""
@@ -389,10 +397,11 @@ class RecommendationEngine:
         if not constraints.compliance_frameworks:
             return 80.0 if algo.compliance.nist_standardized else 50.0
 
-        # Check each required framework
+        # Count approvals from the required frameworks only
+        required = {framework.value for framework in constraints.compliance_frameworks}
         approved_count = 0
         for approval in algo.compliance.approved_by:
-            if approval.status == "approved":
+            if approval.status == "approved" and _framework_id(approval.framework) in required:
                 approved_count += 1
 
         if approved_count > 0:
@@ -569,6 +578,14 @@ class RecommendationEngine:
             notes.append(
                 "Constrained device: smaller algorithms preferred for memory/bandwidth."
             )
+            if (
+                ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
+                and constraints.min_security_level == SecurityLevel.LEVEL_5
+            ):
+                notes.append(
+                    "CNSA 2.0 requires NIST Level 5 parameter sets; the constrained-device "
+                    "context does not lower that floor."
+                )
 
         return notes
 

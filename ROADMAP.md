@@ -106,7 +106,7 @@ We welcome contributions! Priority areas:
 3. **Testing**: Edge cases, real-world validation
 4. **Documentation**: Use cases, tutorials, translations
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
 
 ---
 

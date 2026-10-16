@@ -362,15 +362,17 @@ def assess_sndl_risk(
     recommended_algo = None
     recommended_hybrid = None
 
+    # National security data falls under CNSA 2.0, which uses the Level V
+    # parameter sets (ML-KEM-1024, ML-DSA-87) at all classification levels.
+    national_security = profile.classification == DataClassification.TOP_SECRET
+
     if "kem" in profile.cryptographic_needs:
         if profile.urgency in [ThreatUrgency.CRITICAL, ThreatUrgency.HIGH]:
             recommended_hybrid = "X25519MLKEM768"
-            recommended_algo = "ML-KEM-768"
-        else:
-            recommended_algo = "ML-KEM-768"
+        recommended_algo = "ML-KEM-1024" if national_security else "ML-KEM-768"
 
     if "signature" in profile.cryptographic_needs and recommended_algo is None:
-        recommended_algo = "ML-DSA-65"
+        recommended_algo = "ML-DSA-87" if national_security else "ML-DSA-65"
 
     return SNDLAssessment(
         data_profile=profile,

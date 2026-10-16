@@ -125,6 +125,12 @@ class TestSNDLAssessment:
         assert assessment is not None
         assert assessment.recommended_hybrid is not None
 
+    def test_national_security_recommends_cnsa_kem(self) -> None:
+        """Top Secret data gets ML-KEM-1024, the CNSA 2.0 key establishment algorithm."""
+        assessment = assess_sndl_risk("national_security")
+        assert assessment is not None
+        assert assessment.recommended_algorithm == "ML-KEM-1024"
+
     def test_unknown_profile_returns_none(self) -> None:
         """Unknown profile should return None."""
         assessment = assess_sndl_risk("unknown_profile")

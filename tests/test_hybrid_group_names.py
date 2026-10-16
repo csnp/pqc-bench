@@ -30,7 +30,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "src" / "pqc_bench" / "data"
 def test_no_data_file_names_a_kyber_group() -> None:
     offenders = []
     for path in sorted(DATA_DIR.glob("*.py")):
-        for number, line in enumerate(path.read_text().splitlines(), start=1):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if KYBER_GROUP.search(line):
                 offenders.append(f"{path.name}:{number}: {line.strip()}")
     assert offenders == []

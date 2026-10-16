@@ -7,7 +7,7 @@ with intelligent inference of implicit requirements.
 
 import re
 
-from ..data.compliance import get_frameworks_for_context
+from ..data.compliance import CNSA_2_0_KEYWORDS, contains_phrase, get_frameworks_for_context
 from .constraints import (
     ComplianceFramework,
     Constraints,
@@ -127,14 +127,7 @@ class QueryParser:
     # Compliance context patterns
     COMPLIANCE_PATTERNS: dict[ComplianceFramework, list[str]] = {
         ComplianceFramework.FIPS_140_3: ["fips", "fips 140", "federal", "government"],
-        ComplianceFramework.CNSA_2_0: [
-            "cnsa",
-            "nsa",
-            "classified",
-            "secret",
-            "top secret",
-            "defense",
-        ],
+        ComplianceFramework.CNSA_2_0: CNSA_2_0_KEYWORDS,
         ComplianceFramework.PCI_DSS: [
             "pci",
             "payment",
@@ -186,10 +179,12 @@ class QueryParser:
         self._detect_environment(query_lower, constraints)
         self._detect_preferences(query_lower, constraints)
 
-        # Apply inference rules
+        # Apply inference rules. Compliance requirements come last so that
+        # context inference (e.g. the embedded Level 1 floor) cannot lower a
+        # security level that a compliance framework requires.
         constraints.infer_from_use_case()
-        constraints.apply_compliance_requirements()
         self._apply_context_inference(query_lower, constraints)
+        constraints.apply_compliance_requirements()
 
         return constraints
 
@@ -210,7 +205,11 @@ class QueryParser:
     def _detect_compliance(self, query: str, constraints: Constraints) -> None:
         """Detect compliance requirements from query."""
         for framework, keywords in self.COMPLIANCE_PATTERNS.items():
-            if any(kw in query for kw in keywords):
+            if framework == ComplianceFramework.CNSA_2_0:
+                matched = any(contains_phrase(query, kw) for kw in keywords)
+            else:
+                matched = any(kw in query for kw in keywords)
+            if matched:
                 constraints.compliance_frameworks.append(framework)
 
         # Also check for implicit compliance based on context
