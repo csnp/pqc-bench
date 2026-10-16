@@ -202,7 +202,7 @@ pqc-bench hybrid
 
 | Mode | Components | Use Case |
 |------|------------|----------|
-| X25519Kyber768 | X25519 + ML-KEM-768 | TLS key exchange |
+| X25519MLKEM768 | X25519 + ML-KEM-768 | TLS key exchange |
 | ECDSA-P256+ML-DSA-44 | ECDSA + ML-DSA | Certificate signatures |
 
 **Why hybrid?**
@@ -239,11 +239,17 @@ pqc-bench compliance cnsa-2.0 --use-case signatures
 
 ### CNSA 2.0 Timeline
 
-| Deadline | Requirement |
-|----------|-------------|
-| 2025 | Begin planning PQC migration |
-| 2030 | Prefer PQC for new systems |
-| 2033 | Exclusively use PQC |
+CNSA 2.0 uses ML-KEM-1024 and ML-DSA-87 (Level V) for all classification levels, and LMS or XMSS for signing software and firmware. Dates differ by product category:
+
+| Category | Support and prefer by | Use exclusively by |
+|----------|-----------------------|--------------------|
+| Software and firmware signing | 2025 | 2030 |
+| Web browsers, servers and cloud services | 2025 | 2033 |
+| Traditional networking equipment (VPNs, routers) | 2026 | 2030 |
+| Operating systems | 2027 | 2033 |
+| Niche equipment (constrained devices, large PKI systems) | 2030 | 2033 |
+
+Custom applications and legacy equipment should be updated or replaced by 2033. NSA expects the transition for national security systems to be complete by 2035.
 
 ---
 

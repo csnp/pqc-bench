@@ -1,0 +1,124 @@
+"""Tests for compliance framework data."""
+
+from typer.testing import CliRunner
+
+from pqc_bench.cli import app
+from pqc_bench.data.algorithms import get_algorithm
+from pqc_bench.data.compliance import get_framework
+
+# NSA Cybersecurity Advisory PP-22-1338, "Announcing the Commercial National
+# Security Algorithm Suite 2.0", as posted at this address in May 2025.
+CNSA_2_0_URL = (
+    "https://media.defense.gov/2025/May/30/2003728741/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS.PDF"
+)
+RETIRED_CNSA_2_0_URL = (
+    "https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF"
+)
+
+
+class TestCNSA20:
+    """CNSA 2.0 entry matches NSA advisory PP-22-1338."""
+
+    def test_level_v_algorithms_for_all_classification_levels(self) -> None:
+        """Only the Level V lattice parameter sets are listed."""
+        fw = get_framework("cnsa-2.0")
+        assert fw is not None
+        assert fw.requirements.kem_algorithms == ["ml-kem-1024"]
+        assert fw.requirements.min_security_level == 5
+
+    def test_signatures_include_hash_based_signing(self) -> None:
+        """LMS and XMSS are listed for software and firmware signing."""
+        fw = get_framework("cnsa-2.0")
+        assert fw is not None
+        assert fw.requirements.signature_algorithms == ["ml-dsa-87", "lms", "xmss"]
+
+    def test_no_level_3_parameter_sets(self) -> None:
+        """ML-KEM-768 and ML-DSA-65 are not part of CNSA 2.0."""
+        fw = get_framework("cnsa-2.0")
+        assert fw is not None
+        listed = fw.requirements.kem_algorithms + fw.requirements.signature_algorithms
+        assert "ml-kem-768" not in listed
+        assert "ml-dsa-65" not in listed
+        assert "all classification levels" in (fw.requirements.notes or "")
+        assert "for Secret" not in (fw.requirements.notes or "")
+
+    def test_summary_dates(self) -> None:
+        """Earliest prefer, earliest exclusive, last exclusive, and completion years."""
+        fw = get_framework("cnsa-2.0")
+        assert fw is not None
+        assert fw.timeline is not None
+        assert fw.timeline.prefer_by == 2025
+        assert fw.timeline.require_by == 2030
+        assert fw.timeline.exclusive_by == 2033
+        assert fw.timeline.complete_by == 2035
+
+    def test_category_dates(self) -> None:
+        """Each product category carries its own prefer and exclusive year."""
+        fw = get_framework("cnsa-2.0")
+        assert fw is not None
+        assert fw.timeline is not None
+        dates = {c.category: (c.prefer_by, c.exclusive_by) for c in fw.timeline.categories}
+        assert dates == {
+            "Software and firmware signing": (2025, 2030),
+            "Web browsers, servers and cloud services": (2025, 2033),
+            "Traditional networking equipment (VPNs, routers)": (2026, 2030),
+            "Operating systems": (2027, 2033),
+            "Niche equipment (constrained devices, large PKI systems)": (2030, 2033),
+        }
+
+    def test_legacy_equipment_deadline_in_notes(self) -> None:
+        """Custom applications and legacy equipment are updated or replaced by 2033."""
+        fw = get_framework("cnsa-2.0")
+        assert fw is not None
+        assert fw.timeline is not None
+        assert "legacy equipment" in (fw.timeline.notes or "")
+        assert "2033" in (fw.timeline.notes or "")
+
+    def test_cites_current_advisory_address(self) -> None:
+        """The retired 2022 address returns 404 and is no longer cited."""
+        fw = get_framework("cnsa-2.0")
+        assert fw is not None
+        assert fw.url == CNSA_2_0_URL
+        assert CNSA_2_0_URL in fw.citations
+        assert RETIRED_CNSA_2_0_URL not in fw.citations
+        assert fw.url != RETIRED_CNSA_2_0_URL
+
+
+def test_compliance_command_accepts_documented_name() -> None:
+    """`pqc-bench compliance cnsa-2.0` shows the CNSA 2.0 entry."""
+    result = CliRunner().invoke(app, ["compliance", "cnsa-2.0"])
+    assert result.exit_code == 0
+    assert "ML-KEM-1024" in result.output
+    assert "ML-KEM-768" not in result.output
+    assert "LMS" in result.output
+    assert "XMSS" in result.output
+    assert "Transition complete by: 2035" in result.output
+    assert "Operating systems: 2027 / 2033" in result.output
+
+
+class TestCNSA20AlgorithmApprovals:
+    """Per-algorithm CNSA 2.0 approvals agree with the framework entry."""
+
+    @staticmethod
+    def _cnsa_status(algorithm_id: str) -> tuple[str, str | None]:
+        algo = get_algorithm(algorithm_id)
+        assert algo is not None
+        approvals = [a for a in algo.compliance.approved_by if a.framework == "CNSA 2.0"]
+        assert len(approvals) == 1
+        return approvals[0].status, approvals[0].level
+
+    def test_level_v_sets_approved_for_all_levels(self) -> None:
+        for algorithm_id in ("ml-kem-1024", "ml-dsa-87"):
+            assert self._cnsa_status(algorithm_id) == ("approved", "All classification levels")
+
+    def test_level_3_sets_not_approved(self) -> None:
+        for algorithm_id in ("ml-kem-768", "ml-dsa-65"):
+            status, level = self._cnsa_status(algorithm_id)
+            assert status == "not_approved"
+            assert level is None
+
+    def test_level_3_notes_do_not_claim_approval(self) -> None:
+        for algorithm_id in ("ml-kem-768", "ml-dsa-65"):
+            algo = get_algorithm(algorithm_id)
+            assert algo is not None
+            assert "CNSA 2.0 approved" not in algo.notes

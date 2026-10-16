@@ -181,7 +181,7 @@ SECTOR_PROFILES: dict[str, SectorProfile] = {
         hybrid_recommended=True,
         recommended_kem="ML-KEM-1024",  # Highest security for long missions
         recommended_sig="ML-DSA-87",  # CNSA 2.0 requires Level 5
-        recommended_hybrid_kem="X25519Kyber768",
+        recommended_hybrid_kem="X25519MLKEM768",
         migration_priority=[
             "Ground station command authentication (immediate)",
             "Telemetry encryption (before 2027)",
@@ -263,7 +263,7 @@ SECTOR_PROFILES: dict[str, SectorProfile] = {
         bandwidth_limited=True,
         recommended_kem="ML-KEM-512",  # Smaller for latency
         recommended_sig="ML-DSA-44",  # Smallest NIST-approved
-        recommended_hybrid_kem="X25519Kyber768",
+        recommended_hybrid_kem="X25519MLKEM768",
         recommended_hybrid_sig="ECDSA-P256+ML-DSA-44",
         migration_priority=[
             "V2X PKI certificates (new deployments)",
@@ -635,7 +635,7 @@ SECTOR_PROFILES: dict[str, SectorProfile] = {
         recommended_kem="ML-KEM-768",
         recommended_sig="ML-DSA-65",
         hybrid_recommended=True,
-        recommended_hybrid_kem="X25519Kyber768",
+        recommended_hybrid_kem="X25519MLKEM768",
         migration_priority=[
             "5G core network (SA architecture)",
             "Backhaul encryption",
@@ -748,7 +748,7 @@ def get_sector_recommendation(sector_id: str) -> dict[str, str]:
     return {
         "kem": profile.recommended_kem,
         "signature": profile.recommended_sig,
-        "hybrid_kem": profile.recommended_hybrid_kem or "X25519Kyber768",
+        "hybrid_kem": profile.recommended_hybrid_kem or "X25519MLKEM768",
         "hybrid_sig": profile.recommended_hybrid_sig or "ECDSA-P256+ML-DSA-44",
         "urgency": profile.urgency.value,
         "sndl_risk": profile.sndl_risk,

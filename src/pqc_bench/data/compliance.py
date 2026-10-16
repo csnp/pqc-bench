@@ -9,12 +9,23 @@ from dataclasses import dataclass, field
 
 
 @dataclass
+class CategoryTimeline:
+    """Adoption years for one product category within a framework."""
+
+    category: str
+    prefer_by: int | None = None  # Year to support and prefer PQC
+    exclusive_by: int | None = None  # Year PQC must be used exclusively
+
+
+@dataclass
 class TimelineRequirement:
     """Timeline for compliance adoption."""
 
     prefer_by: int | None = None  # Year to prefer PQC
     require_by: int | None = None  # Year PQC becomes mandatory
     exclusive_by: int | None = None  # Year classical is prohibited
+    complete_by: int | None = None  # Year the whole transition should be finished
+    categories: list[CategoryTimeline] = field(default_factory=list)
     notes: str | None = None
 
 
@@ -48,21 +59,37 @@ COMPLIANCE_FRAMEWORKS: dict[str, ComplianceFramework] = {
         id="cnsa_2_0",
         name="CNSA 2.0",
         authority="National Security Agency (NSA)",
-        url="https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF",
+        url="https://media.defense.gov/2025/May/30/2003728741/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS.PDF",
         description="Commercial National Security Algorithm Suite 2.0 - "
         "NSA guidance for protecting classified information",
         requirements=AlgorithmRequirement(
-            kem_algorithms=["ml-kem-768", "ml-kem-1024"],
-            signature_algorithms=["ml-dsa-65", "ml-dsa-87"],
-            min_security_level=3,
-            notes="ML-KEM-768 and ML-DSA-65 for Secret; ML-KEM-1024 and ML-DSA-87 for Top Secret",
+            kem_algorithms=["ml-kem-1024"],
+            signature_algorithms=["ml-dsa-87", "lms", "xmss"],
+            min_security_level=5,
+            notes="Level V parameters for all classification levels: "
+            "ML-KEM-1024 (FIPS 203, named CRYSTALS-Kyber in the advisory) and "
+            "ML-DSA-87 (FIPS 204, named CRYSTALS-Dilithium). "
+            "LMS and XMSS (NIST SP 800-208) for signing software and firmware",
         ),
         timeline=TimelineRequirement(
             prefer_by=2025,
             require_by=2030,
             exclusive_by=2033,
-            notes="Software/firmware should prefer PQC by 2025; "
-            "exclusive PQC use required by 2033",
+            complete_by=2035,
+            categories=[
+                CategoryTimeline("Software and firmware signing", 2025, 2030),
+                CategoryTimeline("Web browsers, servers and cloud services", 2025, 2033),
+                CategoryTimeline("Traditional networking equipment (VPNs, routers)", 2026, 2030),
+                CategoryTimeline("Operating systems", 2027, 2033),
+                CategoryTimeline(
+                    "Niche equipment (constrained devices, large PKI systems)", 2030, 2033
+                ),
+            ],
+            notes="Dates differ by product category. Software and firmware signing and "
+            "traditional networking equipment use CNSA 2.0 exclusively by 2030, the other "
+            "categories by 2033. Custom applications and "
+            "legacy equipment should be updated or replaced by 2033, and NSA expects "
+            "the transition for national security systems to be complete by 2035",
         ),
         applies_to=[
             "US Government classified systems",
@@ -70,7 +97,8 @@ COMPLIANCE_FRAMEWORKS: dict[str, ComplianceFramework] = {
             "National security systems",
         ],
         citations=[
-            "https://media.defense.gov/2022/Sep/07/2003071834/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS_.PDF"
+            "https://media.defense.gov/2025/May/30/2003728741/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS.PDF",
+            "https://web.archive.org/web/20260928212413/https://media.defense.gov/2025/May/30/2003728741/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS.PDF",
         ],
     ),
     "fips_140_3": ComplianceFramework(
@@ -193,7 +221,7 @@ COMPLIANCE_FRAMEWORKS: dict[str, ComplianceFramework] = {
 
 def get_framework(framework_id: str) -> ComplianceFramework | None:
     """Get compliance framework by ID."""
-    return COMPLIANCE_FRAMEWORKS.get(framework_id.lower().replace("-", "_"))
+    return COMPLIANCE_FRAMEWORKS.get(framework_id.lower().replace("-", "_").replace(".", "_"))
 
 
 def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:

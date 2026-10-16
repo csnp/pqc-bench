@@ -78,6 +78,12 @@ class TestQueryParser:
         constraints = parser.parse("healthcare application")
         assert ComplianceFramework.HIPAA in constraints.compliance_frameworks
 
+    def test_parse_cnsa_requires_level_5(self, parser: QueryParser) -> None:
+        """CNSA 2.0 uses Level V parameters for all classification levels."""
+        constraints = parser.parse("classified government system, CNSA 2.0 required")
+        assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_5
+
     def test_parse_high_security(self, parser: QueryParser) -> None:
         """High security keywords should set Level 5."""
         constraints = parser.parse("need maximum security level 5")
