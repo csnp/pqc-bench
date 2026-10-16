@@ -6,6 +6,8 @@ Real-world scenarios demonstrating how to use PQC-Bench for post-quantum cryptog
 
 ## Table of Contents
 
+- [The Quantum Computing Challenge](#the-quantum-computing-challenge)
+- [Why PQC-Bench](#why-pqc-bench)
 - [Web Applications](#web-applications)
 - [Mobile Applications](#mobile-applications)
 - [IoT and Embedded Systems](#iot-and-embedded-systems)
@@ -14,6 +16,39 @@ Real-world scenarios demonstrating how to use PQC-Bench for post-quantum cryptog
 - [Healthcare](#healthcare)
 - [Government and Defense](#government-and-defense)
 - [Critical Infrastructure](#critical-infrastructure)
+
+---
+
+## The Quantum Computing Challenge
+
+Quantum computers will break RSA, ECDSA, and Diffie-Hellman within the next decade. NIST has finalized new standards (FIPS 203, 204, 205). But developers face a maze:
+
+- 4 NIST standards with 15+ parameter variants
+- Performance varies 10-50x by platform
+- Key sizes vary 10-100x from classical
+- Every benchmark says "it depends"
+- Academic papers assume PhD knowledge
+- No guidance for specific industries
+
+**The real risk?** Adversaries are harvesting encrypted data *today* to decrypt when quantum computers arrive. This "Store Now, Decrypt Later" (SNDL) attack means your sensitive data may already be compromised.
+
+---
+
+## Why PQC-Bench
+
+PQC-Bench gives you **answers**, not data dumps:
+
+| Capability | PQC-Bench | Reading NIST Docs | Academic Papers |
+|------------|-----------|-------------------|-----------------|
+| Natural language queries | ✓ | ✗ | ✗ |
+| Sector-specific guidance | ✓ | Partial | ✗ |
+| Compliance deadline tracking | ✓ | Manual | ✗ |
+| Library production-readiness | ✓ | ✗ | ✗ |
+| SNDL threat assessment | ✓ | ✗ | ✗ |
+| Protocol impact analysis | ✓ | Partial | Varies |
+| Actionable recommendations | ✓ | ✗ | ✗ |
+| Open source | ✓ | N/A | Varies |
+| Price | Free | Free | Often paywalled |
 
 ---
 

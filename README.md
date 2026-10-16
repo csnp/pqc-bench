@@ -8,40 +8,7 @@
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-[Why PQC-Bench](#why-pqc-bench) • [Quick Start](#quick-start) • [Features](#features) • [Documentation](#documentation) • [Contributing](#contributing)
-
----
-
-## The Quantum Computing Challenge
-
-Quantum computers will break RSA, ECDSA, and Diffie-Hellman within the next decade. NIST has finalized new standards (FIPS 203, 204, 205). But developers face a maze:
-
-- 4 NIST standards with 15+ parameter variants
-- Performance varies 10-50x by platform
-- Key sizes vary 10-100x from classical
-- Every benchmark says "it depends"
-- Academic papers assume PhD knowledge
-- No guidance for specific industries
-
-**The real risk?** Adversaries are harvesting encrypted data *today* to decrypt when quantum computers arrive. This "Store Now, Decrypt Later" (SNDL) attack means your sensitive data may already be compromised.
-
----
-
-## Why PQC-Bench
-
-PQC-Bench gives you **answers**, not data dumps:
-
-| Capability | PQC-Bench | Reading NIST Docs | Academic Papers |
-|------------|-----------|-------------------|-----------------|
-| Natural language queries | ✓ | ✗ | ✗ |
-| Sector-specific guidance | ✓ | Partial | ✗ |
-| Compliance deadline tracking | ✓ | Manual | ✗ |
-| Library production-readiness | ✓ | ✗ | ✗ |
-| SNDL threat assessment | ✓ | ✗ | ✗ |
-| Protocol impact analysis | ✓ | Partial | Varies |
-| Actionable recommendations | ✓ | ✗ | ✗ |
-| Open source | ✓ | N/A | Varies |
-| Price | Free | Free | Often paywalled |
+[Quick Start](#quick-start) • [What it does](#what-it-does) • [Documentation](#documentation)
 
 ---
 
@@ -70,7 +37,7 @@ pqc-bench explain ml-kem-768
 pqc-bench compare ml-dsa-44 falcon-512
 
 # Check compliance requirements
-pqc-bench compliance cnsa-2.0
+pqc-bench compliance cnsa_2_0
 
 # Get sector-specific guidance
 pqc-bench sector healthcare
@@ -86,13 +53,13 @@ pqc-bench recommend "mobile banking app"
 pqc-bench recommend "embedded sensor with 256KB RAM"
 # → ML-KEM-512 (smallest NIST-approved KEM)
 
-pqc-bench threat --data-type "patient records" --retention "50 years"
-# → EXTREME risk, immediate migration recommended
+pqc-bench threat --data-type healthcare_records
+# → ⚠ AT RISK
 ```
 
 ---
 
-## Features
+## What it does
 
 ### Natural Language Recommendations
 
@@ -133,11 +100,15 @@ Sector-specific guidance based on real regulations:
 Quantify your "Store Now, Decrypt Later" risk:
 
 ```bash
-$ pqc-bench threat --data-type "patient health records" --retention "50 years"
+$ pqc-bench threat --data-type healthcare_records
+...
+⚠ AT RISK
 
-Risk Level: EXTREME
-Effective data lifespan: 100+ years
-Recommendation: Begin migration immediately
+CRITICAL: Data needs 102 years of protection, but quantum threat expected in 15
+years. You are 87 years behind.
+...
+Recommended Action:
+  Prioritize PQC for data at rest and in transit
 ```
 
 ### Library Production-Readiness
@@ -164,20 +135,23 @@ $ pqc-bench libraries
 Understand what PQC means for TLS, certificates, and bandwidth:
 
 ```bash
-$ pqc-bench impact ml-kem-768 --protocol tls
+$ pqc-bench impact ml-kem-768
 
-TLS Handshake Impact:
-• Key size: +1,184 bytes (vs ECDH)
-• Additional TCP segments: ~2
-• Middlebox compatibility: Monitor for ossification
-• MTU considerations: May fragment on constrained networks
+Protocol Impact: ML-KEM-768
+...
+  Baseline: ECDSA P-256 + X25519
+...
+  ClientHello       +1,152 bytes
+  ServerHello       +1,056 bytes
+  Total Handshake   +2,208 bytes
+...
+  Fragmentation risk: high
+  Middlebox compatibility: poor
 ```
 
----
+### Algorithms Covered
 
-## Algorithms Covered
-
-### NIST Post-Quantum Standards
+#### NIST Post-Quantum Standards
 
 | Algorithm | Type | Standard | Security Level | Primary Use Case |
 |-----------|------|----------|----------------|------------------|
@@ -192,7 +166,7 @@ TLS Handshake Impact:
 
 *FIPS 206 pending finalization
 
-### Hybrid Modes
+#### Hybrid Modes
 
 | Mode | Components | Deployed In |
 |------|------------|-------------|
@@ -201,52 +175,25 @@ TLS Handshake Impact:
 
 ---
 
-## Commands Reference
-
-| Command | Description |
-|---------|-------------|
-| `pqc-bench recommend "<query>"` | Natural language recommendation |
-| `pqc-bench explain <algorithm>` | Deep dive on algorithm |
-| `pqc-bench compare <a> <b>` | Side-by-side comparison |
-| `pqc-bench list` | List all algorithms |
-| `pqc-bench migrate --from <alg>` | Migration path from classical |
-| `pqc-bench compliance <framework>` | CNSA 2.0, FIPS 140-3 requirements |
-| `pqc-bench libraries` | Library production-readiness |
-| `pqc-bench hybrid` | Hybrid mode guidance |
-| `pqc-bench threat` | SNDL threat assessment |
-| `pqc-bench impact <algorithm>` | Protocol impact analysis |
-| `pqc-bench sector <name>` | Sector-specific guidance |
-
-### Output Formats
-
-```bash
-pqc-bench recommend "query"           # Rich terminal output (default)
-pqc-bench recommend "query" --verbose # Detailed with citations
-pqc-bench recommend "query" --json    # Machine-readable JSON
-```
-
----
-
 ## Documentation
 
-- [User Guide](docs/USER_GUIDE.md) — Comprehensive usage instructions
-- [Use Cases](docs/USE_CASES.md) — Detailed scenario walkthroughs
-- [Algorithm Reference](docs/ALGORITHMS.md) — Deep dive on each algorithm
-- [Sector Guide](docs/SECTORS.md) — Critical infrastructure details
+- [User Guide](docs/USER_GUIDE.md): every command, output formats, and usage instructions
+- [Use Cases](docs/USE_CASES.md): the quantum risk, why PQC-Bench, and scenario walkthroughs
+- [Algorithm Reference](docs/ALGORITHMS.md): a deep dive on each algorithm
+- [Sector Guide](docs/SECTORS.md): critical infrastructure details
+- [Contributing](docs/CONTRIBUTING.md): development setup and running the tests
 
----
+### NIST Post-Quantum Cryptography Standards
 
-## Contributing
+- [FIPS 203 - ML-KEM](https://csrc.nist.gov/pubs/fips/203/final) — Module-Lattice-Based Key-Encapsulation Mechanism
+- [FIPS 204 - ML-DSA](https://csrc.nist.gov/pubs/fips/204/final) — Module-Lattice-Based Digital Signature Algorithm
+- [FIPS 205 - SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final) — Stateless Hash-Based Digital Signature Algorithm
 
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+### Additional Resources
 
-```bash
-# Development setup
-git clone https://github.com/csnp/pqc-bench.git
-cd pqc-bench
-pip install -e ".[dev]"
-pytest  # Run 227 tests
-```
+- [NSA CNSA 2.0 Algorithm Guidance](https://media.defense.gov/2025/May/30/2003728741/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS.PDF)
+- [CISA Post-Quantum Cryptography Initiative](https://www.cisa.gov/quantum)
+- [NIST Post-Quantum Cryptography Project](https://csrc.nist.gov/projects/post-quantum-cryptography)
 
 ---
 
@@ -261,9 +208,7 @@ PQC-Bench is developed by the **[Cybersecurity Non-Profit (CSNP)](https://csnp.o
 - **Education**: Practical resources empower people to implement better security
 - **Integrity**: The highest ethical standards in all operations
 
----
-
-## QRAMM Toolkit
+### QRAMM Toolkit
 
 PQC-Bench is part of the **[Quantum Readiness Assurance Maturity Model (QRAMM)](https://qramm.org)** toolkit—a suite of open-source tools for post-quantum migration:
 
@@ -275,22 +220,6 @@ PQC-Bench is part of the **[Quantum Readiness Assurance Maturity Model (QRAMM)](
 | **CryptoCBOM** | Cryptographic Bill of Materials generator (coming soon) |
 
 Learn more at [qramm.org](https://qramm.org) and [csnp.org](https://csnp.org).
-
----
-
-## References
-
-### NIST Post-Quantum Cryptography Standards
-
-- [FIPS 203 - ML-KEM](https://csrc.nist.gov/pubs/fips/203/final) — Module-Lattice-Based Key-Encapsulation Mechanism
-- [FIPS 204 - ML-DSA](https://csrc.nist.gov/pubs/fips/204/final) — Module-Lattice-Based Digital Signature Algorithm
-- [FIPS 205 - SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final) — Stateless Hash-Based Digital Signature Algorithm
-
-### Additional Resources
-
-- [NSA CNSA 2.0 Algorithm Guidance](https://media.defense.gov/2025/May/30/2003728741/-1/-1/0/CSA_CNSA_2.0_ALGORITHMS.PDF)
-- [CISA Post-Quantum Cryptography Initiative](https://www.cisa.gov/quantum)
-- [NIST Post-Quantum Cryptography Project](https://csrc.nist.gov/projects/post-quantum-cryptography)
 
 ---
 

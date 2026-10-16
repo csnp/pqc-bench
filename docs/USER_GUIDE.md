@@ -46,6 +46,22 @@ pqc-bench recommend "web application with user authentication"
 
 ## Core Commands
 
+### Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| `pqc-bench recommend "<query>"` | Natural language recommendation |
+| `pqc-bench explain <algorithm>` | Deep dive on algorithm |
+| `pqc-bench compare <a> <b>` | Side-by-side comparison |
+| `pqc-bench list` | List all algorithms |
+| `pqc-bench migrate --from <alg>` | Migration path from classical |
+| `pqc-bench compliance <framework>` | CNSA 2.0, FIPS 140-3 requirements |
+| `pqc-bench libraries` | Library production-readiness |
+| `pqc-bench hybrid` | Hybrid mode guidance |
+| `pqc-bench threat` | SNDL threat assessment |
+| `pqc-bench impact <algorithm>` | Protocol impact analysis |
+| `pqc-bench sector <name>` | Sector-specific guidance |
+
 ### recommend
 
 Get algorithm recommendations based on natural language queries.
@@ -297,6 +313,12 @@ pqc-bench sector space
 ---
 
 ## Output Formats
+
+```bash
+pqc-bench recommend "query"           # Rich terminal output (default)
+pqc-bench recommend "query" --verbose # Detailed with citations
+pqc-bench recommend "query" --json    # Machine-readable JSON
+```
 
 ### Terminal Output (Default)
 
