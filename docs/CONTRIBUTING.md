@@ -7,5 +7,5 @@ We welcome contributions!
 git clone https://github.com/csnp/pqc-bench.git
 cd pqc-bench
 pip install -e ".[dev]"
-pytest  # Run 227 tests
+pytest  # Run the test suite
 ```
