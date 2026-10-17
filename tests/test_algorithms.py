@@ -3,7 +3,9 @@
 import re
 
 import pytest
+from typer.testing import CliRunner
 
+from pqc_bench import cli
 from pqc_bench.data.algorithms import (
     ALGORITHMS,
     get_algorithm,
@@ -202,3 +204,54 @@ class TestSizeComparisons:
             pytest.fail(f"{algo_id}: no reference size for type {algo.algorithm_type!r}")
 
         assert ratio == expected, f"{algo_id}: says ~{ratio}x, sizes give ~{expected}x"
+
+
+# NIST Computer Security Objects Register, algorithm registration:
+# https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration
+NIST_ALGORITHMS_ARC = "2.16.840.1.101.3.4."
+NIST_OIDS = {
+    "ml-kem-512": "2.16.840.1.101.3.4.4.1",
+    "ml-kem-768": "2.16.840.1.101.3.4.4.2",
+    "ml-kem-1024": "2.16.840.1.101.3.4.4.3",
+    "ml-dsa-44": "2.16.840.1.101.3.4.3.17",
+    "ml-dsa-65": "2.16.840.1.101.3.4.3.18",
+    "ml-dsa-87": "2.16.840.1.101.3.4.3.19",
+    "slh-dsa-128f": "2.16.840.1.101.3.4.3.21",
+}
+
+
+class TestAlgorithmOids:
+    """Tests for the object identifiers printed by explain."""
+
+    @pytest.mark.parametrize("algo_id,oid", list(NIST_OIDS.items()))
+    def test_standardized_oid_matches_nist_registration(self, algo_id: str, oid: str) -> None:
+        """FIPS 203, 204 and 205 algorithms carry the OID NIST registered for them."""
+        algo = get_algorithm(algo_id)
+        assert algo is not None
+        assert algo.names.oid == oid
+
+    @pytest.mark.parametrize("algo_id", ["falcon-512", "falcon-1024"])
+    def test_fn_dsa_has_no_oid(self, algo_id: str) -> None:
+        """FN-DSA has no NIST-registered OID until FIPS 206 is final."""
+        algo = get_algorithm(algo_id)
+        assert algo is not None
+        assert algo.names.oid is None
+
+    @pytest.mark.parametrize("algo_id", list(ALGORITHMS.keys()))
+    def test_every_oid_is_under_the_nist_algorithms_arc(self, algo_id: str) -> None:
+        """No algorithm carries an OID from a draft or experimental arc."""
+        oid = ALGORITHMS[algo_id].names.oid
+        if oid is not None:
+            assert oid.startswith(NIST_ALGORITHMS_ARC)
+
+    def test_explain_prints_the_nist_oid(self) -> None:
+        """explain shows the registered OID for a standardized algorithm."""
+        result = CliRunner().invoke(cli.app, ["explain", "ml-kem-768"])
+        assert result.exit_code == 0
+        assert "OID:           2.16.840.1.101.3.4.4.2" in result.output
+
+    def test_explain_says_when_no_oid_is_assigned(self) -> None:
+        """explain keeps the OID line for FN-DSA and says no OID is assigned yet."""
+        result = CliRunner().invoke(cli.app, ["explain", "falcon-512"])
+        assert result.exit_code == 0
+        assert "OID:           not assigned yet" in result.output
