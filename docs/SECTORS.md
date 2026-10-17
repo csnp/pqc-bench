@@ -80,7 +80,7 @@ pqc-bench sector space
 |------|-----------|-----------|
 | KEM | ML-KEM-1024 | Highest security for long missions |
 | Signature | ML-DSA-87 | CNSA 2.0 Level 5 required |
-| Hybrid | X25519MLKEM768 | Ground segment only |
+| Hybrid | SecP384r1MLKEM1024 | Ground segment only; carries ML-KEM-1024 as CNSA 2.0 requires |
 
 ### Migration Priority
 

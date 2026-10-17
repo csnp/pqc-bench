@@ -225,6 +225,32 @@ FRAMEWORK_ALIASES: dict[str, str] = {
     "pci_dss": "pci_dss_4",
 }
 
+# "Military" alone also describes people and topics ("military spouse",
+# "military history"), so it names a system CNSA 2.0 covers only when one of
+# these words follows it.
+MILITARY_SYSTEM_WORDS: list[str] = [
+    "aircraft",
+    "command",
+    "communication",
+    "communications",
+    "data",
+    "drone",
+    "drones",
+    "intelligence",
+    "network",
+    "networks",
+    "radio",
+    "radios",
+    "satellite",
+    "satellites",
+    "system",
+    "systems",
+    "vehicle",
+    "vehicles",
+    "weapon",
+    "weapons",
+]
+
 # Terms that name CNSA 2.0 or the classified, national security and military
 # systems it covers. They are matched as whole words, because "nsa" also occurs
 # inside "transaction" and "classified" inside "unclassified". "cnsa 2" matches
@@ -236,7 +262,7 @@ CNSA_2_0_KEYWORDS: list[str] = [
     "classified",
     "top secret",
     "national security",
-    "military",
+    *(f"military {word}" for word in MILITARY_SYSTEM_WORDS),
 ]
 
 # Phrases that contain a CNSA 2.0 keyword but do not describe a system CNSA 2.0
@@ -245,12 +271,16 @@ CNSA_2_0_EXCLUDED_PHRASES: list[str] = [
     "military grade",
 ]
 
+# A CNSA 2.0 keyword after this prefix is negated: "non-classified",
+# "non-military system".
+NEGATION_PREFIX = r"non[\s_-]*"
 
-def _phrase_pattern(phrase: str) -> re.Pattern[str]:
+
+def _phrase_pattern(phrase: str, prefix: str = "") -> re.Pattern[str]:
     """Pattern for ``phrase`` as whole words, with its words joined by spaces,
-    hyphens, underscores or nothing."""
+    hyphens, underscores or nothing, after the optional regex ``prefix``."""
     words = r"[\s_-]*".join(re.escape(word) for word in phrase.lower().split())
-    return re.compile(rf"(?<![a-z0-9]){words}(?![a-z0-9])")
+    return re.compile(rf"(?<![a-z0-9]){prefix}{words}(?![a-z0-9])")
 
 
 def contains_phrase(text: str, phrase: str) -> bool:
@@ -267,17 +297,43 @@ def mentions_cnsa_2_0(text: str) -> bool:
     text = text.lower()
     for phrase in CNSA_2_0_EXCLUDED_PHRASES:
         text = _phrase_pattern(phrase).sub(" ", text)
+    for keyword in CNSA_2_0_KEYWORDS:
+        text = _phrase_pattern(keyword, NEGATION_PREFIX).sub(" ", text)
     return any(contains_phrase(text, keyword) for keyword in CNSA_2_0_KEYWORDS)
 
 
-# Short use case and compliance keywords that also occur inside unrelated
-# words ("ca" in "local", "phi" in "graphics", "nist" in "administrator").
-# They are matched as whole words. Other short keywords such as "ssl" and
-# "tls" are matched anywhere, because the longer words that contain them,
-# such as "openssl" and "mtls", name the same thing.
+# Short use case, compliance and platform keywords that also occur inside
+# unrelated words ("ca" in "local", "phi" in "graphics", "nist" in
+# "administrator", "ios" in "scenarios", "dhe" in "adhere", "subca" in
+# "subcategory"). They are matched as whole words. Other short keywords such
+# as "ssl" and "tls" are matched anywhere, because the longer words that
+# contain them, such as "openssl" and "mtls", name the same thing.
 WHOLE_WORD_KEYWORDS: frozenset[str] = frozenset(
-    {"api", "ca", "cert", "dh", "iot", "nist", "pci", "phi", "rest"}
+    {
+        "api",
+        "ca",
+        "cert",
+        "dh",
+        "dhe",
+        "ephi",
+        "ios",
+        "iot",
+        "nist",
+        "pci",
+        "phi",
+        "rest",
+        "rootca",
+        "subca",
+    }
 )
+
+# Phrases in which a keyword means something else: "rest" in "data at rest"
+# is not a REST API, and "health" in "health check" is service monitoring,
+# not health data.
+KEYWORD_EXCLUDED_PHRASES: dict[str, list[str]] = {
+    "health": ["health check", "health checks"],
+    "rest": ["at rest"],
+}
 
 
 def contains_keyword(text: str, keyword: str) -> bool:
@@ -286,13 +342,17 @@ def contains_keyword(text: str, keyword: str) -> bool:
 
     A keyword in WHOLE_WORD_KEYWORDS matches only as a whole word or that word
     followed by "s" ("api" matches "APIs" but not "rapid"). Any other keyword
-    matches anywhere, so "health" also matches "healthcare".
+    matches anywhere, so "health" also matches "healthcare". Occurrences inside
+    the keyword's KEYWORD_EXCLUDED_PHRASES do not count.
     """
     keyword = keyword.lower()
+    text = text.lower()
+    for phrase in KEYWORD_EXCLUDED_PHRASES.get(keyword, []):
+        text = _phrase_pattern(phrase).sub(" ", text)
     if keyword not in WHOLE_WORD_KEYWORDS:
-        return keyword in text.lower()
+        return keyword in text
     pattern = rf"(?<![a-z0-9]){re.escape(keyword)}s?(?![a-z0-9])"
-    return re.search(pattern, text.lower()) is not None
+    return re.search(pattern, text) is not None
 
 
 def get_framework(framework_id: str) -> ComplianceFramework | None:
@@ -327,7 +387,7 @@ def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:
             "commerce",
             "merchant",
         ],
-        "hipaa": ["healthcare", "health", "medical", "hospital", "patient", "phi", "ehr"],
+        "hipaa": ["healthcare", "health", "medical", "hospital", "patient", "phi", "ephi", "ehr"],
         "fedramp": ["federal", "cloud", "saas", "government cloud"],
     }
 

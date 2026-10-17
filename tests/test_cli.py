@@ -65,3 +65,43 @@ def test_recommend_json_ignores_short_keywords_inside_other_words() -> None:
     assert data["constraints"]["needs_kem"] is True
     assert data["recommendations"]
     assert all(rec["type"] == "kem" for rec in data["recommendations"])
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "non-military drone telemetry",
+        "military history blog",
+        "military spouse support app",
+        "non-classified email",
+    ],
+)
+def test_recommend_json_keeps_level_3_for_negated_and_non_system_military_terms(query: str) -> None:
+    """These queries select no CNSA 2.0 and keep Level 3 options such as ML-KEM-768."""
+    result = CliRunner().invoke(cli.app, ["recommend", query, "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["constraints"]["compliance_frameworks"] == []
+    assert data["constraints"]["min_security_level"] == 3
+    assert "ml-kem-768" in {rec["algorithm_id"] for rec in data["recommendations"]}
+
+
+@pytest.mark.parametrize(
+    ("query", "use_case", "algorithm_type"),
+    [
+        ("encrypt data at rest", "file_encryption", "kem"),
+        ("data at rest encryption for a database", "file_encryption", "kem"),
+        ("DHE key agreement", "key_exchange", "kem"),
+        ("rootCA rotation", "certificate", "signature"),
+    ],
+)
+def test_recommend_json_selects_the_use_case_and_algorithm_type(
+    query: str, use_case: str, algorithm_type: str
+) -> None:
+    """Data at rest gets KEMs, DHE gets KEMs and rootCA gets signature algorithms."""
+    result = CliRunner().invoke(cli.app, ["recommend", query, "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["constraints"]["use_case"] == use_case
+    assert data["recommendations"]
+    assert all(rec["type"] == algorithm_type for rec in data["recommendations"])

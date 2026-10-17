@@ -67,6 +67,27 @@ def test_sector_hybrid_recommendations() -> None:
         assert get_sector_recommendation(sector_id)["hybrid_kem"] == (hybrid or "X25519MLKEM768")
 
 
+def test_cnsa_sector_hybrid_carries_ml_kem_1024() -> None:
+    """A sector that requires CNSA 2.0 recommends a hybrid with its ML-KEM-1024."""
+    cnsa_sectors = [
+        profile
+        for profile in SECTOR_PROFILES.values()
+        if any(r.name == "CNSA 2.0" and r.pqc_requirement == "mandatory" for r in profile.regulations)
+    ]
+    assert cnsa_sectors
+    for profile in cnsa_sectors:
+        assert profile.recommended_kem == "ML-KEM-1024", profile.id
+        assert get_sector_recommendation(profile.id)["hybrid_kem"] == "SecP384r1MLKEM1024", profile.id
+
+
+def test_sector_command_space_hybrid_matches_kem() -> None:
+    result = CliRunner().invoke(app, ["sector", "space_aerospace"])
+    assert result.exit_code == 0
+    assert "KEM: ML-KEM-1024" in result.output
+    assert "Hybrid KEM: SecP384r1MLKEM1024" in result.output
+    assert "X25519MLKEM768" not in result.output
+
+
 def test_sndl_hybrid_recommendation() -> None:
     recommended = set()
     for profile_id, profile in DATA_PROFILES.items():
