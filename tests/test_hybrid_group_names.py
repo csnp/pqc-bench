@@ -171,6 +171,16 @@ def test_hybrid_command_lists_secp384r1mlkem1024() -> None:
     assert "Libraries: OpenSSL 3.5+, wolfSSL" in section
 
 
+def test_hybrid_tls_use_case_lists_secp384r1mlkem1024() -> None:
+    """hybrid --use-case tls names each KEM hybrid with TLS support and no other hybrid mode."""
+    result = CliRunner().invoke(app, ["hybrid", "--use-case", "tls"])
+    assert result.exit_code == 0
+    assert "SecP384r1MLKEM1024" in result.output
+    for mode in HYBRID_MODES.values():
+        listed = mode.kem_or_sig == "kem" and mode.tls_support
+        assert (mode.name in result.output) is listed, mode.name
+
+
 def test_explain_shows_a_hybrid_mode() -> None:
     runner = CliRunner()
     result = runner.invoke(app, ["explain", "SecP384r1MLKEM1024"])

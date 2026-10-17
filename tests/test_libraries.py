@@ -111,6 +111,20 @@ class TestHybridModes:
         # X25519MLKEM768 should be recommended for TLS
         assert any(m.id == "x25519-mlkem768" for m in modes)
 
+    @pytest.mark.parametrize("use_case", ["tls", "https", "web"])
+    def test_hybrid_modes_for_tls_list_each_tls_kem_hybrid(self, use_case: str) -> None:
+        """TLS use cases list each KEM hybrid with TLS support, SecP384r1MLKEM1024 included."""
+        tls_kem_hybrids = [m.id for m in HYBRID_MODES.values() if m.kem_or_sig == "kem" and m.tls_support]
+        assert "secp384r1-mlkem1024" in tls_kem_hybrids
+        assert [m.id for m in get_hybrid_modes_for_use_case(use_case)] == tls_kem_hybrids
+
+    @pytest.mark.parametrize("use_case", ["browser", "web browser"])
+    def test_hybrid_modes_for_browser_have_chrome_support(self, use_case: str) -> None:
+        """Browser use cases list only the KEM hybrids with Chrome support."""
+        browser_kem_hybrids = [m.id for m in HYBRID_MODES.values() if m.kem_or_sig == "kem" and m.chrome_support]
+        assert "secp384r1-mlkem1024" not in browser_kem_hybrids
+        assert [m.id for m in get_hybrid_modes_for_use_case(use_case)] == browser_kem_hybrids
+
     def test_hybrid_modes_for_certificates(self) -> None:
         """Should return signature hybrids for certificates."""
         modes = get_hybrid_modes_for_use_case("certificate")
