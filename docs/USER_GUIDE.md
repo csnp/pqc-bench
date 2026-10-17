@@ -274,6 +274,8 @@ pqc-bench compliance cnsa-2.0 --use-case tls
 pqc-bench compliance cnsa-2.0 --use-case signatures
 ```
 
+`--use-case` shows only the algorithm lists that use case needs. It accepts `tls`, `jwt`, `file-encryption`, `key-exchange`, `digital-signature`, `code-signing`, `vpn`, `ssh`, `email`, `blockchain`, `api`, `certificate`, `kem` and `signatures`.
+
 ### CNSA 2.0 Timeline
 
 CNSA 2.0 uses ML-KEM-1024 and ML-DSA-87 (Level V) for all classification levels, and LMS or XMSS for signing software and firmware. Dates differ by product category:
