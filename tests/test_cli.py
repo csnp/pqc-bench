@@ -91,6 +91,23 @@ def test_recommend_json_keeps_level_3_for_negated_and_non_system_military_terms(
 
 
 @pytest.mark.parametrize(
+    "query",
+    [
+        "encrypt non-military classified data",
+        "non-military classified system",
+        "non-military nsa network",
+    ],
+)
+def test_recommend_json_keeps_cnsa_for_a_cnsa_term_after_non_military(query: str) -> None:
+    """A CNSA 2.0 term between "non-military" and a system word still selects CNSA 2.0."""
+    result = CliRunner().invoke(cli.app, ["recommend", query, "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["constraints"]["compliance_frameworks"] == ["cnsa_2_0"]
+    assert data["constraints"]["min_security_level"] == 5
+
+
+@pytest.mark.parametrize(
     ("query", "use_case", "algorithm_type"),
     [
         ("encrypt data at rest", "file_encryption", "kem"),
