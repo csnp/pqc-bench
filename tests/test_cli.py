@@ -220,3 +220,31 @@ def test_user_guide_names_every_accepted_compliance_use_case() -> None:
     sentence = next(line for line in guide.splitlines() if line.startswith("`--use-case` shows"))
     named = re.findall(r"`([a-z-]+)`", sentence.split("It accepts", 1)[1])
     assert named == list(cli.COMPLIANCE_USE_CASES)
+
+
+@pytest.mark.parametrize(
+    ("args", "value", "exit_code"),
+    [
+        (["explain", "[/bold]"], "[/bold]", 1),
+        (["explain", "[bold]x[/bold]"], "[bold]x[/bold]", 1),
+        (["compare", "[/bold]", "ml-kem-768"], "[/bold]", 1),
+        (["compare", "ml-kem-768", "[/bold]"], "[/bold]", 1),
+        (["migrate", "--from", "[/red]"], "[/red]", 1),
+        (["compliance", "[red]zzz[/red]"], "[red]zzz[/red]", 1),
+        (["libraries", "--algorithm", "[/bold]"], "[/bold]", 0),
+        (["threat", "--urgency", "[/red]"], "[/red]", 1),
+        (["threat", "--data-type", "[/red]"], "[/red]", 1),
+        (["impact", "[/bold]"], "[/bold]", 1),
+        (["sector", "[/red]"], "[/red]", 1),
+    ],
+)
+def test_a_value_with_square_brackets_is_shown_as_typed_and_does_not_crash(
+    monkeypatch: pytest.MonkeyPatch, args: list[str], value: str, exit_code: int
+) -> None:
+    """An unknown value that holds square brackets is printed exactly as typed."""
+    monkeypatch.setattr(cli, "console", Console(width=200))
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert "Traceback" not in result.output
+    assert value in result.output
+    assert result.exit_code == exit_code
