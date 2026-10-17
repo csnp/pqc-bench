@@ -170,7 +170,7 @@ def explain(
             console.print()
             _print_hybrid_mode(mode)
             return
-        console.print(f"[red]Unknown algorithm: {algorithm}[/red]")
+        console.print(f"[red]Unknown algorithm: {escape(algorithm)}[/red]")
         console.print()
         console.print("Available algorithms:")
         for algo_id in sorted(ALGORITHMS.keys()):
@@ -202,11 +202,11 @@ def compare(
     algo2 = get_algorithm(algorithm2)
 
     if algo1 is None:
-        console.print(f"[red]Unknown algorithm: {algorithm1}[/red]")
+        console.print(f"[red]Unknown algorithm: {escape(algorithm1)}[/red]")
         raise typer.Exit(1)
 
     if algo2 is None:
-        console.print(f"[red]Unknown algorithm: {algorithm2}[/red]")
+        console.print(f"[red]Unknown algorithm: {escape(algorithm2)}[/red]")
         raise typer.Exit(1)
 
     console.print()
@@ -400,7 +400,7 @@ def migrate(
     }
 
     if from_lower not in migrations:
-        console.print(f"[red]Unknown classical algorithm: {from_algo}[/red]")
+        console.print(f"[red]Unknown classical algorithm: {escape(from_algo)}[/red]")
         console.print()
         console.print("Supported classical algorithms:")
         for _key, val in migrations.items():
@@ -538,7 +538,7 @@ def compliance(
     fw = get_framework(framework)
 
     if fw is None:
-        console.print(f"[red]Unknown compliance framework: {framework}[/red]")
+        console.print(f"[red]Unknown compliance framework: {escape(framework)}[/red]")
         console.print()
         console.print("Supported frameworks:")
         for fw_id, fw_data in COMPLIANCE_FRAMEWORKS.items():
@@ -743,7 +743,7 @@ def libraries(
     elif algorithm:
         libs = get_libraries_for_algorithm(algorithm)
         if not libs:
-            console.print(f"[yellow]No libraries found supporting {algorithm}[/yellow]")
+            console.print(f"[yellow]No libraries found supporting {escape(algorithm)}[/yellow]")
             console.print()
             return
     else:
@@ -978,12 +978,12 @@ def threat(
         }
         urg = urgency_map.get(urgency.lower())
         if not urg:
-            console.print(f"[red]Unknown urgency level: {urgency}[/red]")
+            console.print(f"[red]Unknown urgency level: {escape(urgency)}[/red]")
             console.print("Valid levels: critical, high, medium, low, monitoring")
             raise typer.Exit(1)
 
         profiles = get_profiles_by_urgency(urg)
-        console.print(f"[bold]Data profiles with {urgency.upper()} urgency:[/bold]")
+        console.print(f"[bold]Data profiles with {escape(urgency.upper())} urgency:[/bold]")
         console.print()
         for profile in profiles:
             console.print(f"  • [bold]{profile.name}[/bold]")
@@ -995,7 +995,7 @@ def threat(
     # Detailed assessment for specific data type
     assessment = assess_sndl_risk(data_type)
     if not assessment:
-        console.print(f"[red]Unknown data type: {data_type}[/red]")
+        console.print(f"[red]Unknown data type: {escape(str(data_type))}[/red]")
         console.print()
         console.print("Available data types:")
         for profile_id in DATA_PROFILES.keys():
@@ -1065,7 +1065,7 @@ def impact(
 
     algo = get_algorithm(algorithm)
     if not algo:
-        console.print(f"[red]Unknown algorithm: {algorithm}[/red]")
+        console.print(f"[red]Unknown algorithm: {escape(algorithm)}[/red]")
         raise typer.Exit(1)
 
     console.print()
@@ -1337,7 +1337,7 @@ def sector(
     profile = get_sector_profile(sector_id)
 
     if not profile:
-        console.print(f"[red]Unknown sector: {sector_name}[/red]")
+        console.print(f"[red]Unknown sector: {escape(sector_name)}[/red]")
         console.print()
         console.print("Available sectors:")
         for sid in SECTOR_PROFILES.keys():
