@@ -84,11 +84,22 @@ def main(
     pass
 
 
+def _require_query(query: str) -> str:
+    """Reject an empty or blank query before it is parsed."""
+    if not query.strip():
+        raise typer.BadParameter(
+            'The query is empty. Describe what you want to protect, for example: '
+            'pqc-bench recommend "TLS for a web server"'
+        )
+    return query
+
+
 @app.command()
 def recommend(
     query: str = typer.Argument(
         ...,
         help="Describe your use case in natural language",
+        callback=_require_query,
     ),
     verbose: bool = typer.Option(
         False,

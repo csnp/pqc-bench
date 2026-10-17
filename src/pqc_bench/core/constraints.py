@@ -243,6 +243,19 @@ class Constraints:
     hybrid_with_classical: bool = False
     preferred_library: str | None = None
 
+    # ══════════════════════════════════════════════════════════════════
+    # QUERY ANALYSIS
+    # ══════════════════════════════════════════════════════════════════
+
+    # Keywords and phrases of the query that set a requirement, in the order
+    # they were found. Requirements inferred from other requirements add none.
+    matched_terms: list[str] = field(default_factory=list)
+
+    def add_matched_term(self, term: str) -> None:
+        """Record a query keyword or phrase that set a requirement."""
+        if term not in self.matched_terms:
+            self.matched_terms.append(term)
+
     def infer_from_use_case(self) -> None:
         """Infer additional constraints from the use case if set."""
         if self.use_case is None:

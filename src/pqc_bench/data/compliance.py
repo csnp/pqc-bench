@@ -340,14 +340,24 @@ def _keep_between_word(match: re.Match[str]) -> str:
     return f" {match.groupdict().get('between') or ''} "
 
 
-def mentions_cnsa_2_0(text: str) -> bool:
-    """Whether ``text`` names CNSA 2.0 or a system that CNSA 2.0 covers."""
+def find_cnsa_2_0_mention(text: str) -> str | None:
+    """The phrase in ``text`` that names CNSA 2.0 or a system that CNSA 2.0
+    covers, lowercased, or None when there is none."""
     text = text.lower()
     for phrase in CNSA_2_0_EXCLUDED_PHRASES:
         text = _phrase_pattern(phrase).sub(" ", text)
     for pattern in _cnsa_2_0_patterns(NEGATION_PREFIX):
         text = pattern.sub(_keep_between_word, text)
-    return any(pattern.search(text) for pattern in _cnsa_2_0_patterns())
+    for pattern in _cnsa_2_0_patterns():
+        match = pattern.search(text)
+        if match:
+            return match.group(0)
+    return None
+
+
+def mentions_cnsa_2_0(text: str) -> bool:
+    """Whether ``text`` names CNSA 2.0 or a system that CNSA 2.0 covers."""
+    return find_cnsa_2_0_mention(text) is not None
 
 
 # Short use case, compliance and platform keywords that also occur inside
@@ -414,6 +424,24 @@ def get_framework(framework_id: str) -> ComplianceFramework | None:
     return COMPLIANCE_FRAMEWORKS.get(FRAMEWORK_ALIASES.get(key, key))
 
 
+# Context keywords that suggest a compliance framework, by framework ID.
+CONTEXT_FRAMEWORK_KEYWORDS: dict[str, list[str]] = {
+    "cnsa_2_0": CNSA_2_0_KEYWORDS,
+    "fips_140_3": ["federal", "government", "fips", "nist"],
+    "pci_dss_4": [
+        "payment",
+        "credit card",
+        "financial",
+        "banking",
+        "fintech",
+        "commerce",
+        "merchant",
+    ],
+    "hipaa": ["healthcare", "health", "medical", "hospital", "patient", "phi", "ephi", "ehr"],
+    "fedramp": ["federal", "cloud", "saas", "government cloud"],
+}
+
+
 def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:
     """
     Get applicable compliance frameworks based on context keywords.
@@ -428,23 +456,7 @@ def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:
     context_lower = context.lower()
     applicable = []
 
-    keyword_mapping = {
-        "cnsa_2_0": CNSA_2_0_KEYWORDS,
-        "fips_140_3": ["federal", "government", "fips", "nist"],
-        "pci_dss_4": [
-            "payment",
-            "credit card",
-            "financial",
-            "banking",
-            "fintech",
-            "commerce",
-            "merchant",
-        ],
-        "hipaa": ["healthcare", "health", "medical", "hospital", "patient", "phi", "ephi", "ehr"],
-        "fedramp": ["federal", "cloud", "saas", "government cloud"],
-    }
-
-    for framework_id, keywords in keyword_mapping.items():
+    for framework_id, keywords in CONTEXT_FRAMEWORK_KEYWORDS.items():
         if framework_id == "cnsa_2_0":
             matched = mentions_cnsa_2_0(context_lower)
         else:

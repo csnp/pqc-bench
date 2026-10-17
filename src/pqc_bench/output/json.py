@@ -68,6 +68,7 @@ class JsonOutput:
             "compliance_frameworks": [
                 f.value for f in result.constraints.compliance_frameworks
             ],
+            "matched_terms": list(result.constraints.matched_terms),
         }
 
         return {

@@ -384,3 +384,62 @@ def test_recommend_text_brief_lines_do_not_end_in_a_dash(
     output = _recommend_text(monkeypatch, "mobile banking app", *mode)
     assert re.search(r"\(Score: \d+\)", output)
     assert not re.search(r"\(Score: \d+\) -\s*$", output, re.MULTILINE)
+
+
+NO_REQUIREMENT = "No requirement was recognised in your query"
+UNRECOGNISED_QUERY = "zzzz qqqq nothing matches"
+
+
+def test_recommend_says_first_that_no_requirement_was_recognised(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The defaults note is printed before the recommendation panel."""
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=100)))
+    result = CliRunner().invoke(cli.app, ["recommend", UNRECOGNISED_QUERY])
+    assert result.exit_code == 0
+    assert NO_REQUIREMENT in result.output
+    assert 'pqc-bench recommend "TLS for a web server"' in result.output
+    assert result.output.index(NO_REQUIREMENT) < result.output.index("╭")
+    assert "Limited constraints provided" not in result.output
+
+
+def test_recommend_verbose_states_the_defaults_in_the_query_analysis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Query Analysis names the defaults instead of being blank, and the note is printed once."""
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=100)))
+    result = CliRunner().invoke(cli.app, ["recommend", UNRECOGNISED_QUERY, "--verbose"])
+    assert result.exit_code == 0
+    analysis = result.output.split("Query Analysis", 1)[1].split("╭", 1)[0]
+    assert "Nothing recognised; defaults applied: NIST standardized, Level 3 or higher" in analysis
+    assert result.output.count(NO_REQUIREMENT) == 1
+    assert result.output.index(NO_REQUIREMENT) < result.output.index("╭")
+    assert "Limited constraints provided" not in result.output
+
+
+def test_recommend_json_reports_no_matched_terms_and_the_defaults_note() -> None:
+    result = CliRunner().invoke(cli.app, ["recommend", UNRECOGNISED_QUERY, "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["constraints"]["matched_terms"] == []
+    assert data["notes"][0].startswith(NO_REQUIREMENT)
+    assert not any("Limited constraints provided" in note for note in data["notes"])
+
+
+def test_recommend_json_lists_the_matched_terms_of_a_recognised_query() -> None:
+    result = CliRunner().invoke(cli.app, ["recommend", "TLS for a web server", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert "tls" in data["constraints"]["matched_terms"]
+    assert not any(NO_REQUIREMENT in note for note in data["notes"])
+
+
+@pytest.mark.parametrize("query", ["", "   "])
+@pytest.mark.parametrize("extra", [[], ["--json"]])
+def test_recommend_rejects_an_empty_query(query: str, extra: list[str]) -> None:
+    """An empty or blank query is a usage error, and --json writes no document."""
+    result = CliRunner().invoke(cli.app, ["recommend", query, *extra])
+    assert result.exit_code == 2
+    assert "{" not in result.stdout
+    assert "empty" in result.output
+    assert "TLS for a web server" in result.output
