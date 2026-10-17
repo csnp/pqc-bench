@@ -131,6 +131,20 @@ class TestSNDLAssessment:
         assert assessment is not None
         assert assessment.recommended_algorithm == "ML-KEM-1024"
 
+    def test_national_security_hybrid_uses_cnsa_kem(self) -> None:
+        """The Top Secret hybrid is built on ML-KEM-1024, matching the recommended algorithm."""
+        assessment = assess_sndl_risk("national_security")
+        assert assessment is not None
+        assert assessment.recommended_algorithm == "ML-KEM-1024"
+        assert assessment.recommended_hybrid == "SecP384r1MLKEM1024"
+
+    def test_non_national_security_hybrid_is_x25519mlkem768(self) -> None:
+        """Profiles outside CNSA 2.0 keep the X25519MLKEM768 hybrid with ML-KEM-768."""
+        assessment = assess_sndl_risk("healthcare_records")
+        assert assessment is not None
+        assert assessment.recommended_algorithm == "ML-KEM-768"
+        assert assessment.recommended_hybrid == "X25519MLKEM768"
+
     def test_unknown_profile_returns_none(self) -> None:
         """Unknown profile should return None."""
         assessment = assess_sndl_risk("unknown_profile")
