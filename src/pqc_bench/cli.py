@@ -106,6 +106,7 @@ def recommend(
         3,
         "--top",
         "-n",
+        min=1,
         help="Number of recommendations to show",
     ),
 ) -> None:
