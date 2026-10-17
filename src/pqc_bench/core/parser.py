@@ -9,9 +9,10 @@ import re
 
 from ..data.compliance import (
     CNSA_2_0_KEYWORDS,
+    CONTEXT_FRAMEWORK_KEYWORDS,
     contains_keyword,
+    find_cnsa_2_0_mention,
     get_frameworks_for_context,
-    mentions_cnsa_2_0,
 )
 from .constraints import (
     ComplianceFramework,
@@ -20,6 +21,16 @@ from .constraints import (
     SecurityLevel,
     UseCase,
 )
+
+
+def _first_keyword(query: str, keywords: list[str]) -> str | None:
+    """The first of ``keywords`` that contains_keyword finds in ``query``."""
+    return next((kw for kw in keywords if contains_keyword(query, kw)), None)
+
+
+def _first_substring(query: str, keywords: list[str]) -> str | None:
+    """The first of ``keywords`` that occurs anywhere in ``query``."""
+    return next((kw for kw in keywords if kw in query), None)
 
 
 class QueryParser:
@@ -183,7 +194,9 @@ class QueryParser:
             query: Free-form description of requirements
 
         Returns:
-            Constraints object with extracted and inferred requirements
+            Constraints object with extracted and inferred requirements.
+            Its matched_terms list holds the keywords and phrases of the
+            query that set a requirement.
         """
         query_lower = query.lower()
         constraints = Constraints()
@@ -208,37 +221,48 @@ class QueryParser:
     def _detect_platform(self, query: str, constraints: Constraints) -> None:
         """Detect target platform from query."""
         for platform, keywords in self.PLATFORM_PATTERNS.items():
-            if any(contains_keyword(query, kw) for kw in keywords):
+            term = _first_keyword(query, keywords)
+            if term:
                 constraints.platform = platform
+                constraints.add_matched_term(term)
                 return
 
     def _detect_use_case(self, query: str, constraints: Constraints) -> None:
         """Detect primary use case from query."""
         for use_case, keywords in self.USECASE_PATTERNS.items():
-            if any(contains_keyword(query, kw) for kw in keywords):
+            term = _first_keyword(query, keywords)
+            if term:
                 constraints.use_case = use_case
+                constraints.add_matched_term(term)
                 return
 
     def _detect_compliance(self, query: str, constraints: Constraints) -> None:
         """Detect compliance requirements from query."""
         for framework, keywords in self.COMPLIANCE_PATTERNS.items():
             if framework == ComplianceFramework.CNSA_2_0:
-                matched = mentions_cnsa_2_0(query)
+                term = find_cnsa_2_0_mention(query)
             else:
-                matched = any(contains_keyword(query, kw) for kw in keywords)
-            if matched:
+                term = _first_keyword(query, keywords)
+            if term:
                 constraints.compliance_frameworks.append(framework)
+                constraints.add_matched_term(term)
 
         # Also check for implicit compliance based on context
         inferred = get_frameworks_for_context(query)
         for framework in inferred:
             try:
                 cf = ComplianceFramework(framework.id)
-                if cf not in constraints.compliance_frameworks:
-                    constraints.compliance_frameworks.append(cf)
             except ValueError:
                 # Framework ID doesn't match enum value, skip
-                pass
+                continue
+            if cf not in constraints.compliance_frameworks:
+                constraints.compliance_frameworks.append(cf)
+                if cf == ComplianceFramework.CNSA_2_0:
+                    term = find_cnsa_2_0_mention(query)
+                else:
+                    term = _first_keyword(query, CONTEXT_FRAMEWORK_KEYWORDS[cf.value])
+                if term:
+                    constraints.add_matched_term(term)
 
     def _detect_performance(self, query: str, constraints: Constraints) -> None:
         """Detect performance requirements from query."""
@@ -247,6 +271,7 @@ class QueryParser:
             match = re.search(pattern, query)
             if match:
                 constraints.max_latency_ms = float(match.group(1))
+                constraints.add_matched_term(match.group(0).strip())
                 break
 
         # Volume detection
@@ -259,59 +284,88 @@ class QueryParser:
                     except (ValueError, IndexError):
                         pass
                 constraints.is_high_volume = True
+                constraints.add_matched_term(match.group(0).strip())
                 break
 
     def _detect_environment(self, query: str, constraints: Constraints) -> None:
         """Detect environment flags from query."""
-        if any(contains_keyword(query, kw) for kw in ["mobile", "ios", "android", "phone", "tablet"]):
+        term = _first_keyword(query, ["mobile", "ios", "android", "phone", "tablet"])
+        if term:
             constraints.is_mobile = True
+            constraints.add_matched_term(term)
             if constraints.platform is None:
                 constraints.platform = Platform.ARM64_NEON
 
-        if any(contains_keyword(query, kw) for kw in [
+        term = _first_keyword(query, [
             "embedded", "iot", "iiot", "constrained", "mcu", "microcontroller",
             "esp32", "arduino", "stm32", "rtos",
-        ]):
+        ])
+        if term:
             constraints.is_embedded = True
+            constraints.add_matched_term(term)
             if constraints.platform is None:
                 constraints.platform = Platform.EMBEDDED
 
-        if any(contains_keyword(query, kw) for kw in ["browser", "web app", "frontend", "wasm"]):
+        term = _first_keyword(query, ["browser", "web app", "frontend", "wasm"])
+        if term:
             constraints.is_browser = True
+            constraints.add_matched_term(term)
             if constraints.platform is None:
                 constraints.platform = Platform.WASM
 
-        if any(contains_keyword(query, kw) for kw in ["server", "backend", "cloud", "aws", "gcp", "azure"]):
+        term = _first_keyword(query, ["server", "backend", "cloud", "aws", "gcp", "azure"])
+        if term:
             constraints.is_server = True
+            constraints.add_matched_term(term)
             if constraints.platform is None:
                 constraints.platform = Platform.X86_64_AVX2
 
     def _detect_preferences(self, query: str, constraints: Constraints) -> None:
         """Detect user preferences from query."""
-        if any(kw in query for kw in ["small signature", "compact", "minimal size", "bandwidth"]):
+        term = _first_substring(query, ["small signature", "compact", "minimal size", "bandwidth"])
+        if term:
             constraints.prefer_smaller_signatures = True
+            constraints.add_matched_term(term)
 
-        if any(kw in query for kw in ["fast verify", "quick verification", "read heavy"]):
+        term = _first_substring(query, ["fast verify", "quick verification", "read heavy"])
+        if term:
             constraints.prefer_faster_verification = True
+            constraints.add_matched_term(term)
 
-        if any(kw in query for kw in ["fast sign", "quick signing", "write heavy"]):
+        term = _first_substring(query, ["fast sign", "quick signing", "write heavy"])
+        if term:
             constraints.prefer_faster_signing = True
+            constraints.add_matched_term(term)
 
-        if any(kw in query for kw in ["hybrid", "transition", "migration"]):
+        term = _first_substring(query, ["hybrid", "transition", "migration"])
+        if term:
             constraints.hybrid_with_classical = True
+            constraints.add_matched_term(term)
 
         # Security level preferences
-        if any(kw in query for kw in ["maximum security", "highest security", "level 5"]):
+        term = _first_substring(query, ["maximum security", "highest security", "level 5"])
+        if term:
             constraints.min_security_level = SecurityLevel.LEVEL_5
-        elif any(kw in query for kw in ["high security", "level 3"]):
-            constraints.min_security_level = SecurityLevel.LEVEL_3
+            constraints.add_matched_term(term)
+        else:
+            term = _first_substring(query, ["high security", "level 3"])
+            if term:
+                constraints.min_security_level = SecurityLevel.LEVEL_3
+                constraints.add_matched_term(term)
 
     def _apply_context_inference(self, query: str, constraints: Constraints) -> None:
-        """Apply inference rules based on overall context."""
+        """Apply inference rules based on overall context.
+
+        A rule that acts on a word of the query records that word in
+        matched_terms; a rule that acts on other requirements records nothing.
+        """
         # Constrained/embedded context - prefer smaller algorithms
-        if constraints.is_embedded or any(
-            kw in query for kw in ["constrained", "limited memory", "low power", "small footprint"]
-        ):
+        constrained_term = _first_substring(
+            query, ["constrained", "limited memory", "low power", "small footprint"]
+        )
+        if constrained_term:
+            constraints.add_matched_term(constrained_term)
+        if constraints.is_embedded or constrained_term:
             # Lower security level is acceptable for IoT/embedded
             constraints.min_security_level = SecurityLevel.LEVEL_1
             constraints.prefer_smaller_keys = True
@@ -323,18 +377,23 @@ class QueryParser:
                 constraints.max_ciphertext_bytes = 1500
 
         # Financial context implies higher security
-        if any(kw in query for kw in ["bank", "financial", "payment", "money", "transaction"]):
+        term = _first_substring(query, ["bank", "financial", "payment", "money", "transaction"])
+        if term:
             if constraints.min_security_level.value < SecurityLevel.LEVEL_3.value:
                 constraints.min_security_level = SecurityLevel.LEVEL_3
+                constraints.add_matched_term(term)
 
         # Healthcare implies compliance
-        if any(contains_keyword(query, kw) for kw in ["health", "medical", "patient", "hospital"]):
+        term = _first_keyword(query, ["health", "medical", "patient", "hospital"])
+        if term:
             if ComplianceFramework.HIPAA not in constraints.compliance_frameworks:
                 constraints.compliance_frameworks.append(ComplianceFramework.HIPAA)
+                constraints.add_matched_term(term)
 
         # Startup context - emphasize practicality
         if "startup" in query:
             constraints.is_high_volume = True
+            constraints.add_matched_term("startup")
 
         # Blockchain context - signature size matters
         if constraints.use_case == UseCase.BLOCKCHAIN:
@@ -354,7 +413,11 @@ class QueryParser:
 
         # If no crypto operation specified, try to infer from keywords
         if not constraints.needs_kem and not constraints.needs_signature:
-            if any(kw in query for kw in ["encrypt", "key exchange", "kem", "decryption"]):
+            term = _first_substring(query, ["encrypt", "key exchange", "kem", "decryption"])
+            if term:
                 constraints.needs_kem = True
-            if any(kw in query for kw in ["sign", "signature", "verify", "authentication"]):
+                constraints.add_matched_term(term)
+            term = _first_substring(query, ["sign", "signature", "verify", "authentication"])
+            if term:
                 constraints.needs_signature = True
+                constraints.add_matched_term(term)

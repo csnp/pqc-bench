@@ -14,6 +14,16 @@ from ..data.critical_infrastructure import SECTOR_PROFILES
 from ..data.crosswalk import get_crosswalk
 from .constraints import ComplianceFramework, Constraints, SecurityLevel, UseCase
 
+# First note of a result for a query in which the parser recognised no term.
+# The defaults it names are those of Constraints: requires_nist_standardized
+# and min_security_level.
+NO_REQUIREMENT_NOTE = (
+    "No requirement was recognised in your query, so these recommendations use the "
+    "defaults: NIST standardized algorithms at security Level 3 or higher. To get "
+    "advice for your setup, describe what you are protecting, for example: "
+    'pqc-bench recommend "TLS for a web server"'
+)
+
 
 def _framework_id(name: str) -> str:
     """Normalize a framework name such as "FIPS 140-3" to its ID ("fips_140_3")."""
@@ -144,7 +154,7 @@ class RecommendationEngine:
         alternatives = scored[top_n : top_n + 3]
 
         # Generate result notes
-        notes = self._generate_notes(constraints, recommendations)
+        notes = self._generate_notes(constraints, recommendations, query=query)
 
         return RecommendationResult(
             query=query,
@@ -551,11 +561,14 @@ class RecommendationEngine:
         self,
         constraints: Constraints,
         recommendations: list[Recommendation],
+        query: str = "",
     ) -> list[str]:
         """Generate notes about the recommendation result."""
         notes = []
 
-        if constraints.confidence < 0.5:
+        if query.strip() and not constraints.matched_terms:
+            notes.append(NO_REQUIREMENT_NOTE)
+        elif constraints.confidence < 0.5:
             notes.append(
                 "Limited constraints provided; consider specifying platform or use case "
                 "for more tailored recommendations."

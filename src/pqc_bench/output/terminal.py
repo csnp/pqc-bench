@@ -10,8 +10,11 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from ..core.engine import Recommendation, RecommendationResult
+from ..core.engine import NO_REQUIREMENT_NOTE, Recommendation, RecommendationResult
 from ..data.algorithms import AlgorithmProfile
+
+# Query Analysis line for a query in which no requirement was recognised.
+DEFAULTS_APPLIED = "Nothing recognised; defaults applied: NIST standardized, Level 3 or higher"
 
 
 class TerminalOutput:
@@ -53,6 +56,8 @@ class TerminalOutput:
             return
 
         algo = primary.algorithm
+
+        self._print_no_requirement_note(result)
 
         # Build the recommendation panel
         content = self._build_recommendation_content(primary)
@@ -102,11 +107,16 @@ class TerminalOutput:
         if primary is None:
             return
 
-        # Query analysis section
         self.console.print()
+        self._print_no_requirement_note(result)
+
+        # Query analysis section
         self.console.print("[bold]Query Analysis[/bold]")
         self.console.print("─" * 40)
-        self._print_constraints(result.constraints)
+        if NO_REQUIREMENT_NOTE in result.notes:
+            self.console.print(f"  {DEFAULTS_APPLIED}")
+        else:
+            self._print_constraints(result.constraints)
         self.console.print()
 
         # Primary recommendation
@@ -146,12 +156,19 @@ class TerminalOutput:
             self.console.print(f"  • {citation.title}")
             self.console.print(f"    [dim]{citation.url}[/dim]")
 
-        # Notes
-        if result.notes:
+        # Notes, except the no-requirement note, which is printed first
+        notes = [note for note in result.notes if note != NO_REQUIREMENT_NOTE]
+        if notes:
             self.console.print()
             self.console.print("[bold]Notes[/bold]")
-            for note in result.notes:
+            for note in notes:
                 self.console.print(f"  [yellow]![/yellow] {note}")
+
+    def _print_no_requirement_note(self, result: RecommendationResult) -> None:
+        """Print the no-requirement note, if the result has it, before the recommendation."""
+        if NO_REQUIREMENT_NOTE in result.notes:
+            self.console.print(f"[yellow]![/yellow] {NO_REQUIREMENT_NOTE}")
+            self.console.print()
 
     def _build_recommendation_content(
         self,

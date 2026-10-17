@@ -459,3 +459,57 @@ class TestQueryParser:
         constraints = parser.parse("low power sensor device")
         assert constraints.min_security_level == SecurityLevel.LEVEL_1
         assert constraints.prefer_smaller_keys is True
+
+
+class TestMatchedTerms:
+    """The parser records the words of the query that set a requirement."""
+
+    @pytest.fixture
+    def parser(self) -> QueryParser:
+        return QueryParser()
+
+    def test_unrecognised_query_matches_no_terms(self, parser: QueryParser) -> None:
+        assert parser.parse("zzzz qqqq nothing matches").matched_terms == []
+
+    def test_empty_query_matches_no_terms(self, parser: QueryParser) -> None:
+        assert parser.parse("").matched_terms == []
+
+    def test_tls_query_records_the_keyword(self, parser: QueryParser) -> None:
+        assert "tls" in parser.parse("TLS for a web server").matched_terms
+
+    def test_use_case_and_compliance_are_both_recorded(self, parser: QueryParser) -> None:
+        terms = parser.parse("file encryption for healthcare").matched_terms
+        assert len(terms) >= 2
+        assert "file encryption" in terms
+        assert "healthcare" in terms
+
+    def test_requirements_inferred_from_the_use_case_add_no_term(
+        self, parser: QueryParser
+    ) -> None:
+        """TLS implies both a KEM and a signature; only "tls" was in the query."""
+        constraints = parser.parse("TLS")
+        assert constraints.needs_both is True
+        assert constraints.matched_terms == ["tls"]
+
+    def test_a_term_matched_by_two_passes_is_recorded_once(self, parser: QueryParser) -> None:
+        """"server" sets both the platform and the server flag."""
+        assert parser.parse("server").matched_terms == ["server"]
+
+    def test_cnsa_term_is_recorded(self, parser: QueryParser) -> None:
+        assert "cnsa" in parser.parse("CNSA 2.0 required").matched_terms
+
+    def test_performance_terms_are_recorded(self, parser: QueryParser) -> None:
+        constraints = parser.parse("need 10ms latency")
+        assert constraints.max_latency_ms == 10
+        assert constraints.matched_terms == ["10ms latency"]
+
+    def test_query_word_that_lowers_the_level_is_recorded(self, parser: QueryParser) -> None:
+        """"limited memory" lowers the security level, so it is a recognised term."""
+        constraints = parser.parse("limited memory")
+        assert constraints.min_security_level == SecurityLevel.LEVEL_1
+        assert constraints.matched_terms == ["limited memory"]
+
+    def test_query_word_that_selects_the_operation_is_recorded(self, parser: QueryParser) -> None:
+        constraints = parser.parse("encrypt my backups")
+        assert constraints.needs_kem is True
+        assert constraints.matched_terms == ["encrypt"]
