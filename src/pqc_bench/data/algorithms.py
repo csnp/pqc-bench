@@ -257,7 +257,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             public_key=800,
             private_key=1632,
             ciphertext=768,
-            comparison="~3x larger than X25519",
+            comparison="~25x larger than an X25519 public key (32 bytes)",
         ),
         requirements=ImplementationRequirements(
             requires_fpu=False,
@@ -348,7 +348,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             public_key=1184,
             private_key=2400,
             ciphertext=1088,
-            comparison="~4x larger than X25519",
+            comparison="~37x larger than an X25519 public key (32 bytes)",
         ),
         requirements=ImplementationRequirements(
             requires_fpu=False,
@@ -456,7 +456,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             public_key=1568,
             private_key=3168,
             ciphertext=1568,
-            comparison="~5x larger than X25519",
+            comparison="~49x larger than an X25519 public key (32 bytes)",
         ),
         requirements=ImplementationRequirements(
             requires_fpu=False,

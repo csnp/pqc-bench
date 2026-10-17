@@ -1,5 +1,7 @@
 """Tests for the algorithm database."""
 
+import re
+
 import pytest
 
 from pqc_bench.data.algorithms import (
@@ -161,3 +163,42 @@ class TestAlgorithmProfiles:
         for algo in get_algorithms_by_type("kem"):
             assert algo.sizes.ciphertext is not None
             assert algo.sizes.ciphertext > 0
+
+
+# Classical reference sizes the comparison strings are measured against.
+X25519_PUBLIC_KEY_BYTES = 32
+ECDSA_P256_SIGNATURE_BYTES = 64
+
+
+class TestSizeComparisons:
+    """The "~Nx larger" text must match the sizes printed above it."""
+
+    def test_comparisons_exist(self) -> None:
+        """At least one KEM and one signature carry a comparison string."""
+        types = {a.algorithm_type for a in ALGORITHMS.values() if a.sizes.comparison}
+        assert {"kem", "signature"} <= types
+
+    @pytest.mark.parametrize(
+        "algo_id",
+        [k for k, a in ALGORITHMS.items() if a.sizes.comparison],
+    )
+    def test_comparison_ratio_matches_sizes(self, algo_id: str) -> None:
+        """The leading ~Nx is the size divided by the classical reference."""
+        algo = ALGORITHMS[algo_id]
+        comparison = algo.sizes.comparison
+        assert comparison is not None
+        match = re.match(r"~(\d+)x ", comparison)
+        assert match, f"{algo_id}: comparison does not start with ~Nx: {comparison!r}"
+        ratio = int(match.group(1))
+
+        if algo.algorithm_type == "kem":
+            expected = round(algo.sizes.public_key / X25519_PUBLIC_KEY_BYTES)
+            assert "X25519" in comparison
+        elif algo.algorithm_type == "signature":
+            assert algo.sizes.signature is not None
+            expected = round(algo.sizes.signature / ECDSA_P256_SIGNATURE_BYTES)
+            assert "ECDSA P-256" in comparison
+        else:
+            pytest.fail(f"{algo_id}: no reference size for type {algo.algorithm_type!r}")
+
+        assert ratio == expected, f"{algo_id}: says ~{ratio}x, sizes give ~{expected}x"
