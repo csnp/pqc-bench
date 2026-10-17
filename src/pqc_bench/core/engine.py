@@ -9,6 +9,9 @@ import re
 from dataclasses import dataclass, field
 
 from ..data.algorithms import ALGORITHMS, AlgorithmProfile
+from ..data.compliance import get_framework
+from ..data.critical_infrastructure import SECTOR_PROFILES
+from ..data.crosswalk import get_crosswalk
 from .constraints import ComplianceFramework, Constraints, SecurityLevel, UseCase
 
 
@@ -587,7 +590,72 @@ class RecommendationEngine:
                     "context does not lower that floor."
                 )
 
+        for framework in constraints.compliance_frameworks:
+            note = self._sector_baseline_note(framework, constraints, recommendations)
+            if note:
+                notes.append(note)
+
         return notes
+
+    def _sector_baseline_note(
+        self,
+        framework: ComplianceFramework,
+        constraints: Constraints,
+        recommendations: list[Recommendation],
+    ) -> str | None:
+        """Name the sector baseline when the top KEM or signature differs from it."""
+        row = get_crosswalk(framework.value)
+        profile = get_framework(framework.value)
+        if row is None or profile is None:
+            return None
+        sector_id, data_profile_id = row
+        sector = SECTOR_PROFILES[sector_id]
+
+        floor = constraints.min_security_level.value
+        if floor == profile.requirements.min_security_level:
+            minimum = f"the {profile.name} Level {floor} minimum"
+        else:
+            minimum = f"the Level {floor} minimum this query asks for"
+
+        by_name = {algo.names.nist_name: algo for algo in self.algorithms.values()}
+        candidates = {algo.names.nist_name for algo in self._filter_algorithms(constraints)}
+        top_kem = next((r.algorithm for r in recommendations if r.algorithm.is_kem), None)
+        top_sig = next((r.algorithm for r in recommendations if r.algorithm.is_signature), None)
+
+        reasons = []
+        for top, baseline_name in (
+            (top_kem, sector.recommended_kem),
+            (top_sig, sector.recommended_sig),
+        ):
+            baseline = by_name.get(baseline_name)
+            if top is None or baseline is None or top.names.nist_name == baseline_name:
+                continue
+            top_name = top.names.nist_name
+            if baseline.security.nist_level < floor:
+                reasons.append(f"{baseline_name} is below {minimum}, so it is not ranked here.")
+            elif baseline_name not in candidates:
+                reasons.append(
+                    f"{baseline_name} does not fit this query's other limits, "
+                    "so it is not ranked here."
+                )
+            elif top.security.nist_level > baseline.security.nist_level:
+                reasons.append(
+                    f"{top_name} ranks above {baseline_name} here because it goes beyond "
+                    f"{minimum}; both meet it."
+                )
+            else:
+                reasons.append(
+                    f"{top_name} ranks above {baseline_name} here on the other ranking "
+                    f"factors, such as speed and size; both meet {minimum}."
+                )
+
+        if not reasons:
+            return None
+        return (
+            f"Sector baseline for {sector.name}: {sector.recommended_kem} (KEM) and "
+            f"{sector.recommended_sig} (signature). See 'pqc-bench sector {sector_id}' and "
+            f"'pqc-bench threat --data-type {data_profile_id}'. " + " ".join(reasons)
+        )
 
     def _get_performance_reason(self, algo: AlgorithmProfile, constraints: Constraints) -> str:
         """Get performance-related reason string."""

@@ -9,6 +9,7 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from pqc_bench import cli
+from pqc_bench.output.terminal import TerminalOutput
 
 
 @pytest.mark.parametrize(
@@ -248,3 +249,63 @@ def test_a_value_with_square_brackets_is_shown_as_typed_and_does_not_crash(
     assert "Traceback" not in result.output
     assert value in result.output
     assert result.exit_code == exit_code
+
+
+def _sector_baseline_notes(notes: list[str]) -> list[str]:
+    return [note for note in notes if note.startswith("Sector baseline")]
+
+
+@pytest.mark.parametrize("verbose", [False, True])
+def test_recommend_names_the_healthcare_sector_baseline(
+    monkeypatch: pytest.MonkeyPatch, verbose: bool
+) -> None:
+    """Both text modes name the level that sector and threat give for healthcare data."""
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=200)))
+    args = ["recommend", "file encryption for healthcare"] + (["--verbose"] if verbose else [])
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == 0
+    output = " ".join(result.output.split())
+    assert "Sector baseline" in output
+    assert "ML-KEM-768" in output
+    assert "pqc-bench sector healthcare" in output
+    assert "pqc-bench threat --data-type healthcare_records" in output
+
+
+def test_recommend_json_has_the_healthcare_sector_baseline_note() -> None:
+    """The JSON notes say why rank 1 differs from the healthcare baseline."""
+    result = CliRunner().invoke(
+        cli.app, ["recommend", "file encryption for healthcare", "--json"]
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["constraints"]["compliance_frameworks"] == ["hipaa"]
+    assert data["recommendations"][0]["algorithm_id"] == "ml-kem-1024"
+    notes = _sector_baseline_notes(data["notes"])
+    assert len(notes) == 1
+    assert "ML-KEM-768 (KEM) and ML-DSA-65 (signature)" in notes[0]
+    assert "pqc-bench sector healthcare" in notes[0]
+    assert "pqc-bench threat --data-type healthcare_records" in notes[0]
+    assert "HIPAA" in notes[0]
+    assert "Level 3" in notes[0]
+
+
+def test_recommend_json_has_no_sector_baseline_note_without_a_framework() -> None:
+    result = CliRunner().invoke(cli.app, ["recommend", "TLS for a web server", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["constraints"]["compliance_frameworks"] == []
+    assert _sector_baseline_notes(data["notes"]) == []
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["sector", "healthcare"],
+        ["threat", "--data-type", "healthcare_records"],
+    ],
+)
+def test_commands_named_in_the_healthcare_baseline_note_run(args: list[str]) -> None:
+    """Each command the note cites runs and prints the baseline KEM it names."""
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == 0
+    assert "ML-KEM-768" in result.output

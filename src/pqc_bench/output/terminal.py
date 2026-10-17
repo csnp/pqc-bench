@@ -72,6 +72,13 @@ class TerminalOutput:
             for alt in result.alternatives[:2]:
                 self._print_alternative_brief(alt)
 
+        # Print notes
+        if result.notes:
+            self.console.print()
+            self.console.print("[dim]Notes:[/dim]")
+            for note in result.notes:
+                self.console.print(f"  [yellow]![/yellow] {note}")
+
         # Print follow-up commands
         self.console.print()
         self.console.print("[dim]Commands:[/dim]")

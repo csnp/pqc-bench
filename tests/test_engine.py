@@ -389,3 +389,79 @@ def test_cnsa_embedded_query_recommends_only_cnsa_algorithms() -> None:
     recommended = {r.algorithm.id for r in result.recommendations + result.alternatives}
     assert recommended == {"ml-kem-1024", "ml-dsa-87"}
     assert any("CNSA 2.0" in note for note in result.notes)
+
+
+class TestSectorBaselineNote:
+    """recommend names the sector baseline when its top pick differs from it."""
+
+    @staticmethod
+    def _baseline_notes(constraints: Constraints, query: str = "") -> list[str]:
+        result = RecommendationEngine().recommend(constraints, query=query)
+        return [note for note in result.notes if note.startswith("Sector baseline")]
+
+    def test_hipaa_note_explains_the_higher_level(self) -> None:
+        query = "file encryption for healthcare"
+        notes = self._baseline_notes(QueryParser().parse(query), query)
+        assert len(notes) == 1
+        assert notes[0].startswith(
+            "Sector baseline for Healthcare & Medical Devices: "
+            "ML-KEM-768 (KEM) and ML-DSA-65 (signature)."
+        )
+        assert "ML-KEM-1024 ranks above ML-KEM-768 here" in notes[0]
+        assert "HIPAA Security Rule Level 3 minimum" in notes[0]
+        assert "both meet it" in notes[0]
+
+    def test_pci_dss_note_names_the_financial_baseline(self) -> None:
+        query = "PCI DSS file encryption"
+        notes = self._baseline_notes(QueryParser().parse(query), query)
+        assert len(notes) == 1
+        assert "pqc-bench sector financial" in notes[0]
+        assert "pqc-bench threat --data-type transactional_data" in notes[0]
+        assert "PCI DSS 4.0 Level 3 minimum" in notes[0]
+
+    def test_tls_note_covers_the_top_kem_and_signature(self) -> None:
+        query = "HIPAA TLS server"
+        notes = self._baseline_notes(QueryParser().parse(query), query)
+        assert len(notes) == 1
+        assert "ML-KEM-1024 ranks above ML-KEM-768" in notes[0]
+        assert "ML-DSA-87 ranks above ML-DSA-65" in notes[0]
+
+    def test_no_note_when_the_top_pick_is_the_baseline(self) -> None:
+        constraints = Constraints(
+            needs_kem=True,
+            compliance_frameworks=[ComplianceFramework.HIPAA],
+            is_embedded=True,
+        )
+        result = RecommendationEngine().recommend(constraints)
+        assert result.primary is not None
+        assert result.primary.algorithm.names.nist_name == "ML-KEM-768"
+        assert self._baseline_notes(constraints) == []
+
+    def test_no_note_for_a_framework_without_a_sector(self) -> None:
+        constraints = Constraints(
+            needs_kem=True, compliance_frameworks=[ComplianceFramework.FIPS_140_3]
+        )
+        assert self._baseline_notes(constraints) == []
+
+    def test_baseline_below_the_minimum_is_not_said_to_meet_it(self) -> None:
+        constraints = Constraints(
+            needs_kem=True,
+            compliance_frameworks=[ComplianceFramework.HIPAA],
+            min_security_level=SecurityLevel.LEVEL_5,
+        )
+        notes = self._baseline_notes(constraints)
+        assert len(notes) == 1
+        assert "ML-KEM-768 is below the Level 5 minimum this query asks for" in notes[0]
+        assert "meet" not in notes[0]
+
+    def test_baseline_outside_other_limits_is_said_to_be_unranked(self) -> None:
+        constraints = Constraints(
+            needs_kem=True,
+            compliance_frameworks=[ComplianceFramework.HIPAA],
+            min_security_level=SecurityLevel.LEVEL_1,
+            max_stack_kb=2,
+        )
+        notes = self._baseline_notes(constraints)
+        assert len(notes) == 1
+        assert "ML-KEM-768 does not fit this query's other limits" in notes[0]
+        assert "meet" not in notes[0]
