@@ -368,12 +368,26 @@ def test_recommend_top_above_the_candidate_count_recommends_every_candidate(
         assert f"#{rank} " in output
 
 
+ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+# Rich renders the usage error in colour whenever FORCE_COLOR is set and TERM is not dumb,
+# which is what the GitHub Actions runners do.
+COLOUR_FORCED = {"FORCE_COLOR": "1", "NO_COLOR": None, "TERM": "xterm-256color"}
+
+
+def _without_ansi(text: str) -> str:
+    """Return the text with every ANSI escape sequence removed."""
+    return ANSI_ESCAPE.sub("", text)
+
+
 @pytest.mark.parametrize("top", ["0", "-1"])
-def test_recommend_rejects_a_top_below_1(top: str) -> None:
-    """--top 0 and --top -1 are usage errors that name the option."""
-    result = CliRunner().invoke(cli.app, ["recommend", "x", "--top", top])
+@pytest.mark.parametrize("env", [{}, COLOUR_FORCED], ids=["plain", "colour"])
+def test_recommend_rejects_a_top_below_1(top: str, env: dict[str, str | None]) -> None:
+    """--top 0 and --top -1 are usage errors that name the option, with the error plain or coloured."""
+    result = CliRunner().invoke(cli.app, ["recommend", "x", "--top", top], env=env)
     assert result.exit_code == 2
-    assert "--top" in result.output
+    if env:
+        assert "\x1b[" in result.output
+    assert "--top" in _without_ansi(result.output)
 
 
 @pytest.mark.parametrize("mode", [[], ["--top", "1"]])
