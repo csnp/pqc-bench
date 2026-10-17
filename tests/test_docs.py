@@ -99,7 +99,7 @@ def _readme_sample(command: str) -> list[str]:
 
 def test_readme_libraries_sample_is_output_of_the_cli(monkeypatch: pytest.MonkeyPatch) -> None:
     """Each line of the README `libraries` sample is printed by the CLI at 80 columns, in the same order."""
-    monkeypatch.setattr(cli, "console", Console(width=80))
+    monkeypatch.setattr(cli, "console", Console(width=80, force_terminal=False))
     result = CliRunner().invoke(app, ["libraries"])
     assert result.exit_code == 0
     printed = iter(line.rstrip() for line in result.output.splitlines())

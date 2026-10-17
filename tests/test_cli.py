@@ -36,7 +36,7 @@ def test_recommend_json_is_valid_on_a_narrow_console(
     monkeypatch: pytest.MonkeyPatch, query: str
 ) -> None:
     """--json writes a parseable document even when its lines are wider than the console."""
-    monkeypatch.setattr(cli, "console", Console(width=40))
+    monkeypatch.setattr(cli, "console", Console(width=40, force_terminal=False))
     result = CliRunner().invoke(cli.app, ["recommend", query, "--json"])
     assert result.exit_code == 0
     data = json.loads(result.output)
@@ -256,7 +256,7 @@ def test_a_value_with_square_brackets_is_shown_as_typed_and_does_not_crash(
     monkeypatch: pytest.MonkeyPatch, args: list[str], value: str, exit_code: int
 ) -> None:
     """An unknown value that holds square brackets is printed exactly as typed."""
-    monkeypatch.setattr(cli, "console", Console(width=200))
+    monkeypatch.setattr(cli, "console", Console(width=200, force_terminal=False))
     result = CliRunner().invoke(cli.app, args)
     assert result.exception is None or isinstance(result.exception, SystemExit)
     assert "Traceback" not in result.output
@@ -273,7 +273,7 @@ def test_recommend_names_the_healthcare_sector_baseline(
     monkeypatch: pytest.MonkeyPatch, verbose: bool
 ) -> None:
     """Both text modes name the level that sector and threat give for healthcare data."""
-    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=200)))
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=200, force_terminal=False)))
     args = ["recommend", "file encryption for healthcare"] + (["--verbose"] if verbose else [])
     result = CliRunner().invoke(cli.app, args)
     assert result.exit_code == 0
@@ -326,7 +326,7 @@ def test_commands_named_in_the_healthcare_baseline_note_run(args: list[str]) -> 
 
 def _recommend_text(monkeypatch: pytest.MonkeyPatch, *args: str) -> str:
     """Run recommend in text mode on a 100-column console and return its output."""
-    console = Console(width=100)
+    console = Console(width=100, force_terminal=False)
     monkeypatch.setattr(cli, "console", console)
     monkeypatch.setattr(cli.terminal, "console", console)
     result = CliRunner().invoke(cli.app, ["recommend", *args])
@@ -381,9 +381,8 @@ def test_recommend_top_above_the_candidate_count_recommends_every_candidate(
 
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 # Rich renders the usage error in colour whenever FORCE_COLOR is set and TERM is not dumb,
-# which is what the GitHub Actions runners do. TTY_COMPATIBLE is removed because the autouse
-# fixture in conftest.py sets it to 0, and Rich reads it before FORCE_COLOR.
-COLOUR_FORCED = {"FORCE_COLOR": "1", "NO_COLOR": None, "TTY_COMPATIBLE": None, "TERM": "xterm-256color"}
+# which is what the GitHub Actions runners do.
+COLOUR_FORCED = {"FORCE_COLOR": "1", "NO_COLOR": None, "TERM": "xterm-256color"}
 
 
 def _without_ansi(text: str) -> str:
@@ -420,7 +419,7 @@ def test_recommend_says_first_that_no_requirement_was_recognised(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The defaults note is printed before the recommendation panel."""
-    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=100)))
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=100, force_terminal=False)))
     result = CliRunner().invoke(cli.app, ["recommend", UNRECOGNISED_QUERY])
     assert result.exit_code == 0
     assert NO_REQUIREMENT in result.output
@@ -433,7 +432,7 @@ def test_recommend_verbose_states_the_defaults_in_the_query_analysis(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Query Analysis names the defaults instead of being blank, and the note is printed once."""
-    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=100)))
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=100, force_terminal=False)))
     result = CliRunner().invoke(cli.app, ["recommend", UNRECOGNISED_QUERY, "--verbose"])
     assert result.exit_code == 0
     analysis = result.output.split("Query Analysis", 1)[1].split("╭", 1)[0]
@@ -473,7 +472,7 @@ def test_recommend_rejects_an_empty_query(query: str, extra: list[str]) -> None:
 
 def _wide_console(monkeypatch: pytest.MonkeyPatch) -> None:
     """Print to a 200-column console so that no message is wrapped."""
-    monkeypatch.setattr(cli, "console", Console(width=200))
+    monkeypatch.setattr(cli, "console", Console(width=200, force_terminal=False))
 
 
 @pytest.mark.parametrize("value", ["bogus", "kemx", "s", ""])
@@ -689,7 +688,7 @@ RULE_LINE = re.compile(r"═+|─+")
 )
 def test_rules_fit_a_narrow_console(monkeypatch: pytest.MonkeyPatch, width: int, args: list[str]) -> None:
     """Each rule prints as one line no wider than the console instead of wrapping onto a second line."""
-    console = Console(width=width)
+    console = Console(width=width, force_terminal=False)
     monkeypatch.setattr(cli, "console", console)
     monkeypatch.setattr(cli, "terminal", TerminalOutput(console))
     result = CliRunner().invoke(cli.app, args)
