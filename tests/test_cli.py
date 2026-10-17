@@ -381,8 +381,9 @@ def test_recommend_top_above_the_candidate_count_recommends_every_candidate(
 
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 # Rich renders the usage error in colour whenever FORCE_COLOR is set and TERM is not dumb,
-# which is what the GitHub Actions runners do.
-COLOUR_FORCED = {"FORCE_COLOR": "1", "NO_COLOR": None, "TERM": "xterm-256color"}
+# which is what the GitHub Actions runners do. TTY_COMPATIBLE is removed because the autouse
+# fixture in conftest.py sets it to 0, and Rich reads it before FORCE_COLOR.
+COLOUR_FORCED = {"FORCE_COLOR": "1", "NO_COLOR": None, "TTY_COMPATIBLE": None, "TERM": "xterm-256color"}
 
 
 def _without_ansi(text: str) -> str:
