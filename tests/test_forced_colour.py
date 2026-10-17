@@ -1,5 +1,6 @@
 """Checks that the CLI tests pass when the shell that runs pytest forces colour or is a terminal."""
 
+import io
 import os
 import subprocess
 import sys
@@ -7,11 +8,14 @@ from pathlib import Path
 
 import pytest
 
+from pqc_bench import cli
+
 TESTS = Path(__file__).resolve().parent
 CLI_TEXT_TESTS = ["test_cli.py", "test_algorithms.py", "test_compliance.py", "test_hybrid_group_names.py"]
 
-# The autouse fixture in conftest.py sets TTY_COMPATIBLE to 0 and COLUMNS to 80; a new pytest
-# process started by these tests must not inherit those values.
+# These are cleared before a new pytest process starts, so that it sees only the values these
+# tests set, not the shell's. The autouse fixture in conftest.py also sets COLUMNS to 80, which
+# the terminal test clears so that the width comes from the pseudo-terminal.
 COLOUR_VARIABLES = ("FORCE_COLOR", "TTY_COMPATIBLE", "NO_COLOR")
 
 
@@ -71,3 +75,24 @@ def test_cli_tests_pass_when_pytest_writes_to_a_terminal(
         columns=50,
     )
     assert code == pytest.ExitCode.OK, "\n".join(output.splitlines()[-40:])
+
+
+class TerminalLikeStream(io.StringIO):
+    """A text stream whose isatty is true, as sys.stdout is when pytest runs with -s in a terminal."""
+
+    def isatty(self) -> bool:
+        return True
+
+
+def test_the_cli_console_is_not_a_terminal_even_when_stdout_is_one(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The console the autouse fixture gives the CLI reports is_terminal False without reading the environment.
+
+    rich 13.0.0 and 13.9.4 do not read TTY_COMPATIBLE, so the variable is removed here and
+    sys.stdout is replaced with a stream that says it is a terminal. The console must still not be
+    one: a console that is not a terminal picks no colour system, so it writes no escape sequences.
+    """
+    monkeypatch.delenv("TTY_COMPATIBLE", raising=False)
+    monkeypatch.setattr(sys, "stdout", TerminalLikeStream())
+    assert cli.terminal.console is cli.console
+    assert cli.console.is_terminal is False
+    assert cli.console.color_system is None
