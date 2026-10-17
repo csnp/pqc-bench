@@ -115,6 +115,17 @@ def test_context_inference_matches_cnsa_terms_as_whole_words() -> None:
     assert "cnsa_2_0" in inferred("CNSA 2.0 required")
 
 
+def test_context_inference_matches_hyphenated_and_joined_cnsa_terms() -> None:
+    def inferred(context: str) -> list[str]:
+        return [fw.id for fw in get_frameworks_for_context(context)]
+
+    assert "cnsa_2_0" in inferred("top-secret documents")
+    assert "cnsa_2_0" in inferred("national-security systems")
+    assert "cnsa_2_0" in inferred("CNSA2.0 required")
+    assert "cnsa_2_0" in inferred("military communications")
+    assert "cnsa_2_0" not in inferred("military-grade encryption")
+
+
 class TestCNSA20AlgorithmApprovals:
     """Per-algorithm CNSA 2.0 approvals agree with the framework entry."""
 

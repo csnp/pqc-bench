@@ -7,7 +7,7 @@ with intelligent inference of implicit requirements.
 
 import re
 
-from ..data.compliance import CNSA_2_0_KEYWORDS, contains_phrase, get_frameworks_for_context
+from ..data.compliance import CNSA_2_0_KEYWORDS, get_frameworks_for_context, mentions_cnsa_2_0
 from .constraints import (
     ComplianceFramework,
     Constraints,
@@ -206,7 +206,7 @@ class QueryParser:
         """Detect compliance requirements from query."""
         for framework, keywords in self.COMPLIANCE_PATTERNS.items():
             if framework == ComplianceFramework.CNSA_2_0:
-                matched = any(contains_phrase(query, kw) for kw in keywords)
+                matched = mentions_cnsa_2_0(query)
             else:
                 matched = any(kw in query for kw in keywords)
             if matched:
