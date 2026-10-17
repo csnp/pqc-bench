@@ -155,6 +155,53 @@ def test_contains_keyword_matches_other_keywords_inside_words() -> None:
     assert contains_keyword("mTLS between services", "tls")
 
 
+def test_contains_keyword_matches_compound_keywords_as_whole_words() -> None:
+    assert contains_keyword("encrypt ePHI backups", "ephi")
+    assert contains_keyword("DHE-RSA cipher suites", "dhe")
+    assert not contains_keyword("adhere to policy", "dhe")
+    assert contains_keyword("rotate the rootCAs", "rootca")
+    assert contains_keyword("subCA issuance", "subca")
+    assert not contains_keyword("product subcategory", "subca")
+    assert contains_keyword("iOS app", "ios")
+    assert not contains_keyword("test scenarios", "ios")
+    assert not contains_keyword("patriot data archive", "iot")
+
+
+def test_contains_keyword_ignores_excluded_phrases() -> None:
+    assert not contains_keyword("encrypt data at rest", "rest")
+    assert not contains_keyword("data-at-rest encryption", "rest")
+    assert contains_keyword("REST service", "rest")
+    assert not contains_keyword("health check endpoint", "health")
+    assert not contains_keyword("healthcheck endpoint", "health")
+    assert not contains_keyword("health checks", "health")
+    assert contains_keyword("health check for a healthcare portal", "health")
+    assert contains_keyword("encrypt data at rest", "at rest")
+
+
+def test_context_inference_ignores_negated_and_non_system_cnsa_terms() -> None:
+    def inferred(context: str) -> list[str]:
+        return [fw.id for fw in get_frameworks_for_context(context)]
+
+    assert "cnsa_2_0" not in inferred("non-military drone telemetry")
+    assert "cnsa_2_0" not in inferred("nonmilitary drone telemetry")
+    assert "cnsa_2_0" not in inferred("non-classified email")
+    assert "cnsa_2_0" not in inferred("non-NSA systems")
+    assert "cnsa_2_0" not in inferred("military history blog")
+    assert "cnsa_2_0" not in inferred("military spouse support app")
+    assert "cnsa_2_0" in inferred("military drone telemetry")
+    assert "cnsa_2_0" in inferred("military satellites")
+    assert "cnsa_2_0" in inferred("non-military app that stores classified files")
+
+
+def test_context_inference_matches_joined_phi_and_skips_health_checks() -> None:
+    def inferred(context: str) -> list[str]:
+        return [fw.id for fw in get_frameworks_for_context(context)]
+
+    assert "hipaa" in inferred("encrypt ePHI backups")
+    assert "hipaa" not in inferred("health check endpoint")
+    assert "hipaa" in inferred("health records storage")
+
+
 class TestCNSA20AlgorithmApprovals:
     """Per-algorithm CNSA 2.0 approvals agree with the framework entry."""
 

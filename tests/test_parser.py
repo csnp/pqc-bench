@@ -236,6 +236,136 @@ class TestQueryParser:
         constraints = parser.parse("PCIe HSM card")
         assert ComplianceFramework.PCI_DSS not in constraints.compliance_frameworks
 
+    @pytest.mark.parametrize(
+        ("query", "framework"),
+        [
+            ("encrypt ePHI backups", ComplianceFramework.HIPAA),
+            ("store ePHI in the cloud", ComplianceFramework.HIPAA),
+            ("encrypt e-PHI backups", ComplianceFramework.HIPAA),
+            ("PCIDSS scope encryption", ComplianceFramework.PCI_DSS),
+            ("PCI-DSS scope encryption", ComplianceFramework.PCI_DSS),
+        ],
+    )
+    def test_joined_compliance_terms_select_their_framework(
+        self, parser: QueryParser, query: str, framework: ComplianceFramework
+    ) -> None:
+        """"ePHI" selects HIPAA and "PCIDSS" selects PCI DSS, like "e-PHI" and "PCI-DSS"."""
+        constraints = parser.parse(query)
+        assert framework in constraints.compliance_frameworks
+
+    @pytest.mark.parametrize("query", ["graphics rendering service", "philosophy course platform", "PCIe HSM card"])
+    def test_phi_and_pci_inside_other_words_select_no_framework(self, parser: QueryParser, query: str) -> None:
+        """"graphics", "philosophy" and "PCIe" select neither HIPAA nor PCI DSS."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.HIPAA not in constraints.compliance_frameworks
+        assert ComplianceFramework.PCI_DSS not in constraints.compliance_frameworks
+
+    @pytest.mark.parametrize(
+        ("query", "use_case"),
+        [
+            ("DHE key agreement", UseCase.KEY_EXCHANGE),
+            ("FFDHE key agreement", UseCase.KEY_EXCHANGE),
+            ("ffdhe2048 group support", UseCase.KEY_EXCHANGE),
+            ("rootCA rotation", UseCase.CERTIFICATE),
+            ("subCA issuance", UseCase.CERTIFICATE),
+            ("OpenAPI service for partners", UseCase.API),
+            ("RESTful service authentication", UseCase.API),
+            ("IIoT gateway firmware", UseCase.IOT),
+        ],
+    )
+    def test_compound_terms_select_their_use_case(
+        self, parser: QueryParser, query: str, use_case: UseCase
+    ) -> None:
+        """DHE, FFDHE, rootCA, subCA, OpenAPI, RESTful and IIoT select their use case."""
+        constraints = parser.parse(query)
+        assert constraints.use_case == use_case
+
+    @pytest.mark.parametrize(
+        "query",
+        ["handheld scanner", "local backup", "rapid prototyping", "biotech research data", "adhere to the subcategory"],
+    )
+    def test_compound_keywords_not_matched_inside_other_words(self, parser: QueryParser, query: str) -> None:
+        """"dhe" in "handheld" and "adhere", "subca" in "subcategory" and similar select no use case."""
+        constraints = parser.parse(query)
+        assert constraints.use_case is None
+
+    def test_dhe_query_needs_a_kem(self, parser: QueryParser) -> None:
+        """A DHE key agreement query asks for a KEM, not a signature."""
+        constraints = parser.parse("DHE key agreement")
+        assert constraints.needs_kem is True
+        assert constraints.needs_signature is False
+
+    @pytest.mark.parametrize("query", ["encrypt data at rest", "data at rest encryption for a database"])
+    def test_data_at_rest_selects_file_encryption(self, parser: QueryParser, query: str) -> None:
+        """"rest" in "at rest" is not the REST API keyword."""
+        constraints = parser.parse(query)
+        assert constraints.use_case == UseCase.FILE_ENCRYPTION
+        assert constraints.needs_kem is True
+        assert constraints.needs_signature is False
+
+    def test_rest_api_still_selects_api(self, parser: QueryParser) -> None:
+        """"REST" outside "at rest" still selects the API use case."""
+        assert parser.parse("REST service for partners").use_case == UseCase.API
+
+    @pytest.mark.parametrize(
+        "query",
+        ["biotech research data", "patriot data archive", "test scenarios for a payroll service"],
+    )
+    def test_iot_and_ios_inside_other_words_select_no_platform(self, parser: QueryParser, query: str) -> None:
+        """"iot" in "biotech" and "patriot" and "ios" in "scenarios" set no embedded or mobile platform."""
+        constraints = parser.parse(query)
+        assert constraints.platform is None
+        assert constraints.is_embedded is False
+        assert constraints.is_mobile is False
+        assert constraints.min_security_level == SecurityLevel.LEVEL_3
+
+    @pytest.mark.parametrize(
+        ("query", "platform"),
+        [("IIoT gateway firmware", Platform.EMBEDDED), ("iOS app", Platform.ARM64_NEON)],
+    )
+    def test_iiot_and_ios_select_their_platform(self, parser: QueryParser, query: str, platform: Platform) -> None:
+        """IIoT selects the embedded platform and iOS the mobile one."""
+        assert parser.parse(query).platform == platform
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "non-military drone telemetry",
+            "military history blog",
+            "military spouse support app",
+            "non-classified email",
+            "non national security workload",
+        ],
+    )
+    def test_negated_and_non_system_military_terms_do_not_select_cnsa(self, parser: QueryParser, query: str) -> None:
+        """Negated CNSA 2.0 terms and "military" that names no system keep the Level 3 floor."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.CNSA_2_0 not in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_3
+
+    @pytest.mark.parametrize(
+        "query", ["military communications system", "military drone telemetry", "classified email"]
+    )
+    def test_military_systems_and_classified_data_select_cnsa(self, parser: QueryParser, query: str) -> None:
+        """A military system or classified data still selects CNSA 2.0 and the Level 5 floor."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_5
+
+    @pytest.mark.parametrize(
+        "query", ["health check endpoint", "healthcheck endpoint", "health-checks for a worker pool"]
+    )
+    def test_health_check_does_not_select_hipaa(self, parser: QueryParser, query: str) -> None:
+        """A service health check is not health data."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.HIPAA not in constraints.compliance_frameworks
+
+    @pytest.mark.parametrize("query", ["healthcare", "health records storage", "health check for a healthcare portal"])
+    def test_health_data_still_selects_hipaa(self, parser: QueryParser, query: str) -> None:
+        """"healthcare" and "health records" still select HIPAA."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.HIPAA in constraints.compliance_frameworks
+
     def test_parse_high_security(self, parser: QueryParser) -> None:
         """High security keywords should set Level 5."""
         constraints = parser.parse("need maximum security level 5")

@@ -181,7 +181,9 @@ SECTOR_PROFILES: dict[str, SectorProfile] = {
         hybrid_recommended=True,
         recommended_kem="ML-KEM-1024",  # Highest security for long missions
         recommended_sig="ML-DSA-87",  # CNSA 2.0 requires Level 5
-        recommended_hybrid_kem="X25519MLKEM768",
+        # Pairs ECDH P-384 with ML-KEM-1024. X25519MLKEM768 carries ML-KEM-768,
+        # which CNSA 2.0 does not list.
+        recommended_hybrid_kem="SecP384r1MLKEM1024",
         migration_priority=[
             "Ground station command authentication (immediate)",
             "Telemetry encryption (before 2027)",

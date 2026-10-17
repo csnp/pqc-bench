@@ -69,6 +69,7 @@ class QueryParser:
         Platform.EMBEDDED: [
             "embedded",
             "iot",
+            "iiot",
             "mcu",
             "microcontroller",
             "esp32",
@@ -104,7 +105,7 @@ class QueryParser:
         UseCase.VPN: ["vpn", "tunnel", "wireguard", "ipsec", "openvpn"],
         UseCase.SSH: ["ssh", "secure shell", "remote access"],
         UseCase.EMAIL: ["email", "s/mime", "smime", "pgp", "encrypted email"],
-        UseCase.API: ["api", "rest", "graphql", "grpc", "microservice"],
+        UseCase.API: ["api", "openapi", "rest", "restful", "graphql", "grpc", "microservice"],
         UseCase.FILE_ENCRYPTION: [
             "file encryption",
             "encrypt files",
@@ -116,12 +117,14 @@ class QueryParser:
             "key exchange",
             "diffie-hellman",
             "dh",
+            "dhe",
+            "ffdhe",
             "ecdh",
             "session key",
             "ephemeral",
         ],
-        UseCase.IOT: ["iot", "sensor", "device", "constrained", "low power"],
-        UseCase.CERTIFICATE: ["certificate", "x.509", "pki", "ca", "cert"],
+        UseCase.IOT: ["iot", "iiot", "sensor", "device", "constrained", "low power"],
+        UseCase.CERTIFICATE: ["certificate", "x.509", "pki", "ca", "rootca", "subca", "cert"],
         UseCase.DIGITAL_SIGNATURE: [
             "signature",
             "verify",
@@ -135,6 +138,7 @@ class QueryParser:
         ComplianceFramework.CNSA_2_0: CNSA_2_0_KEYWORDS,
         ComplianceFramework.PCI_DSS: [
             "pci",
+            "pcidss",
             "payment",
             "credit card",
             "card data",
@@ -142,7 +146,15 @@ class QueryParser:
             "fintech",
             "banking",
         ],
-        ComplianceFramework.HIPAA: ["hipaa", "healthcare", "medical", "health", "phi", "patient"],
+        ComplianceFramework.HIPAA: [
+            "hipaa",
+            "healthcare",
+            "medical",
+            "health",
+            "phi",
+            "ephi",
+            "patient",
+        ],
         ComplianceFramework.SOC2: ["soc2", "soc 2", "audit"],
         ComplianceFramework.FEDRAMP: ["fedramp", "federal cloud"],
     }
@@ -196,7 +208,7 @@ class QueryParser:
     def _detect_platform(self, query: str, constraints: Constraints) -> None:
         """Detect target platform from query."""
         for platform, keywords in self.PLATFORM_PATTERNS.items():
-            if any(kw in query for kw in keywords):
+            if any(contains_keyword(query, kw) for kw in keywords):
                 constraints.platform = platform
                 return
 
@@ -251,25 +263,25 @@ class QueryParser:
 
     def _detect_environment(self, query: str, constraints: Constraints) -> None:
         """Detect environment flags from query."""
-        if any(kw in query for kw in ["mobile", "ios", "android", "phone", "tablet"]):
+        if any(contains_keyword(query, kw) for kw in ["mobile", "ios", "android", "phone", "tablet"]):
             constraints.is_mobile = True
             if constraints.platform is None:
                 constraints.platform = Platform.ARM64_NEON
 
-        if any(kw in query for kw in [
-            "embedded", "iot", "constrained", "mcu", "microcontroller",
+        if any(contains_keyword(query, kw) for kw in [
+            "embedded", "iot", "iiot", "constrained", "mcu", "microcontroller",
             "esp32", "arduino", "stm32", "rtos",
         ]):
             constraints.is_embedded = True
             if constraints.platform is None:
                 constraints.platform = Platform.EMBEDDED
 
-        if any(kw in query for kw in ["browser", "web app", "frontend", "wasm"]):
+        if any(contains_keyword(query, kw) for kw in ["browser", "web app", "frontend", "wasm"]):
             constraints.is_browser = True
             if constraints.platform is None:
                 constraints.platform = Platform.WASM
 
-        if any(kw in query for kw in ["server", "backend", "cloud", "aws", "gcp", "azure"]):
+        if any(contains_keyword(query, kw) for kw in ["server", "backend", "cloud", "aws", "gcp", "azure"]):
             constraints.is_server = True
             if constraints.platform is None:
                 constraints.platform = Platform.X86_64_AVX2
@@ -316,7 +328,7 @@ class QueryParser:
                 constraints.min_security_level = SecurityLevel.LEVEL_3
 
         # Healthcare implies compliance
-        if any(kw in query for kw in ["health", "medical", "patient", "hospital"]):
+        if any(contains_keyword(query, kw) for kw in ["health", "medical", "patient", "hospital"]):
             if ComplianceFramework.HIPAA not in constraints.compliance_frameworks:
                 constraints.compliance_frameworks.append(ComplianceFramework.HIPAA)
 
