@@ -324,11 +324,20 @@ def _cnsa_2_0_patterns(prefix: str = "") -> list[re.Pattern[str]]:
     # The word between "military" and the system word is set apart by
     # separators on both sides, so "military ecosystem" is not "military" +
     # "eco" + "system".
-    between = rf"[\s_-]+(?!(?:{people_words})[\s_-])[a-z0-9]+[\s_-]+"
+    # The word is captured as "between" so that a negated phrase can be
+    # removed without it: "non-military classified data" still names
+    # classified data.
+    between = rf"[\s_-]+(?!(?:{people_words})[\s_-])(?P<between>[a-z0-9]+)[\s_-]+"
     military = re.compile(
         rf"(?<![a-z0-9]){prefix}military(?:{between}|[\s_-]*)(?:{system_words})(?![a-z0-9])"
     )
     return [*(_phrase_pattern(term, prefix) for term in CNSA_2_0_TERMS), military]
+
+
+def _keep_between_word(match: re.Match[str]) -> str:
+    """Replacement for a negated phrase: the word between "military" and the
+    system word, if the phrase has one, between spaces."""
+    return f" {match.groupdict().get('between') or ''} "
 
 
 def mentions_cnsa_2_0(text: str) -> bool:
@@ -337,7 +346,7 @@ def mentions_cnsa_2_0(text: str) -> bool:
     for phrase in CNSA_2_0_EXCLUDED_PHRASES:
         text = _phrase_pattern(phrase).sub(" ", text)
     for pattern in _cnsa_2_0_patterns(NEGATION_PREFIX):
-        text = pattern.sub(" ", text)
+        text = pattern.sub(_keep_between_word, text)
     return any(pattern.search(text) for pattern in _cnsa_2_0_patterns())
 
 

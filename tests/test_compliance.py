@@ -8,6 +8,7 @@ from pqc_bench.data.compliance import (
     contains_keyword,
     get_framework,
     get_frameworks_for_context,
+    mentions_cnsa_2_0,
 )
 
 # NSA Cybersecurity Advisory PP-22-1338, "Announcing the Commercial National
@@ -224,6 +225,22 @@ def test_context_inference_ignores_negated_and_non_system_cnsa_terms() -> None:
     assert "cnsa_2_0" in inferred("military drone telemetry")
     assert "cnsa_2_0" in inferred("military satellites")
     assert "cnsa_2_0" in inferred("non-military app that stores classified files")
+
+
+def test_context_inference_keeps_a_cnsa_term_between_non_military_and_a_system_word() -> None:
+    """Negating "military" does not negate the CNSA 2.0 term that stands after it."""
+    def inferred(context: str) -> list[str]:
+        return [fw.id for fw in get_frameworks_for_context(context)]
+
+    assert mentions_cnsa_2_0("non-military classified data")
+    assert mentions_cnsa_2_0("non-military nsa network")
+    assert mentions_cnsa_2_0("nonmilitary cnsa system")
+    assert "cnsa_2_0" in inferred("encrypt non-military classified data")
+    assert "cnsa_2_0" in inferred("non-military classified system")
+    assert "cnsa_2_0" in inferred("non-military nsa network")
+    assert "cnsa_2_0" not in inferred("non-military email system")
+    assert "cnsa_2_0" not in inferred("non-military family network")
+    assert not mentions_cnsa_2_0("non-military system system")
 
 
 def test_context_inference_matches_joined_phi_and_skips_health_checks() -> None:
