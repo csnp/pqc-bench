@@ -48,3 +48,20 @@ def test_recommend_json_selects_cnsa_for_hyphenated_joined_and_military_terms(
     recommended = {rec["algorithm_id"] for rec in data["recommendations"]}
     assert recommended
     assert recommended <= {"ml-kem-1024", "ml-dsa-87"}
+
+
+def test_recommend_json_ignores_short_keywords_inside_other_words() -> None:
+    """"phi" in "graphics" and "ca" in "local cache" select neither HIPAA nor certificates."""
+    runner = CliRunner()
+
+    result = runner.invoke(cli.app, ["recommend", "graphics rendering service", "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["constraints"]["compliance_frameworks"] == []
+
+    result = runner.invoke(cli.app, ["recommend", "local cache encryption", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["constraints"]["use_case"] != "certificate"
+    assert data["constraints"]["needs_kem"] is True
+    assert data["recommendations"]
+    assert all(rec["type"] == "kem" for rec in data["recommendations"])

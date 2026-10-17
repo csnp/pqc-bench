@@ -270,6 +270,31 @@ def mentions_cnsa_2_0(text: str) -> bool:
     return any(contains_phrase(text, keyword) for keyword in CNSA_2_0_KEYWORDS)
 
 
+# Short use case and compliance keywords that also occur inside unrelated
+# words ("ca" in "local", "phi" in "graphics", "nist" in "administrator").
+# They are matched as whole words. Other short keywords such as "ssl" and
+# "tls" are matched anywhere, because the longer words that contain them,
+# such as "openssl" and "mtls", name the same thing.
+WHOLE_WORD_KEYWORDS: frozenset[str] = frozenset(
+    {"api", "ca", "cert", "dh", "iot", "nist", "pci", "phi", "rest"}
+)
+
+
+def contains_keyword(text: str, keyword: str) -> bool:
+    """
+    Whether ``keyword`` occurs in ``text``.
+
+    A keyword in WHOLE_WORD_KEYWORDS matches only as a whole word or that word
+    followed by "s" ("api" matches "APIs" but not "rapid"). Any other keyword
+    matches anywhere, so "health" also matches "healthcare".
+    """
+    keyword = keyword.lower()
+    if keyword not in WHOLE_WORD_KEYWORDS:
+        return keyword in text.lower()
+    pattern = rf"(?<![a-z0-9]){re.escape(keyword)}s?(?![a-z0-9])"
+    return re.search(pattern, text.lower()) is not None
+
+
 def get_framework(framework_id: str) -> ComplianceFramework | None:
     """Get compliance framework by ID or alias (e.g. "cnsa-2.0", "pci-dss")."""
     key = framework_id.lower().replace("-", "_").replace(".", "_")
@@ -310,7 +335,7 @@ def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:
         if framework_id == "cnsa_2_0":
             matched = mentions_cnsa_2_0(context_lower)
         else:
-            matched = any(kw in context_lower for kw in keywords)
+            matched = any(contains_keyword(context_lower, kw) for kw in keywords)
         if matched:
             framework = COMPLIANCE_FRAMEWORKS.get(framework_id)
             if framework:

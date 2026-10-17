@@ -164,6 +164,78 @@ class TestQueryParser:
         assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
         assert constraints.min_security_level == SecurityLevel.LEVEL_5
 
+    @pytest.mark.parametrize(
+        "query",
+        ["graphics rendering service", "philosophy course platform"],
+    )
+    def test_hipaa_not_inferred_from_words_containing_phi(
+        self, parser: QueryParser, query: str
+    ) -> None:
+        """"phi" inside another word does not select HIPAA."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.HIPAA not in constraints.compliance_frameworks
+
+    def test_hipaa_inferred_from_phi_as_a_word(self, parser: QueryParser) -> None:
+        """PHI as a word selects HIPAA."""
+        constraints = parser.parse("store PHI for a clinic")
+        assert ComplianceFramework.HIPAA in constraints.compliance_frameworks
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "local cache encryption",
+            "encrypt application data",
+            "scalable encryption service",
+        ],
+    )
+    def test_certificate_use_case_not_detected_inside_other_words(
+        self, parser: QueryParser, query: str
+    ) -> None:
+        """"ca" inside another word does not select the certificate use case."""
+        constraints = parser.parse(query)
+        assert constraints.use_case != UseCase.CERTIFICATE
+        assert constraints.needs_kem is True
+        assert constraints.needs_signature is False
+
+    @pytest.mark.parametrize(
+        "query",
+        ["run a private CA", "rotate the CAs", "renew expiring certs"],
+    )
+    def test_certificate_use_case_detected_from_whole_words(
+        self, parser: QueryParser, query: str
+    ) -> None:
+        """"ca" and "cert" as words, or their plurals, select the certificate use case."""
+        constraints = parser.parse(query)
+        assert constraints.use_case == UseCase.CERTIFICATE
+
+    @pytest.mark.parametrize(
+        ("query", "use_case"),
+        [
+            ("rapid key rotation", UseCase.API),
+            ("restore encrypted backups", UseCase.API),
+            ("handheld scanner", UseCase.KEY_EXCHANGE),
+            ("biotech research data", UseCase.IOT),
+            ("not certain which algorithm to use", UseCase.CERTIFICATE),
+        ],
+    )
+    def test_short_use_case_keywords_not_matched_inside_other_words(
+        self, parser: QueryParser, query: str, use_case: UseCase
+    ) -> None:
+        """"api", "rest", "dh", "iot" and "cert" inside other words select no use case."""
+        constraints = parser.parse(query)
+        assert constraints.use_case != use_case
+
+    @pytest.mark.parametrize("query", ["mTLS between services", "OpenSSL upgrade"])
+    def test_tls_detected_inside_longer_words(self, parser: QueryParser, query: str) -> None:
+        """"tls" and "ssl" inside mTLS and OpenSSL still select TLS."""
+        constraints = parser.parse(query)
+        assert constraints.use_case == UseCase.TLS
+
+    def test_pci_dss_not_inferred_from_pcie(self, parser: QueryParser) -> None:
+        """"pci" inside "PCIe" does not select PCI DSS."""
+        constraints = parser.parse("PCIe HSM card")
+        assert ComplianceFramework.PCI_DSS not in constraints.compliance_frameworks
+
     def test_parse_high_security(self, parser: QueryParser) -> None:
         """High security keywords should set Level 5."""
         constraints = parser.parse("need maximum security level 5")
