@@ -26,3 +26,25 @@ def test_recommend_json_is_valid_on_a_narrow_console(
     data = json.loads(result.output)
     assert data["query"] == query
     assert data["recommendations"]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "top-secret documents",
+        "CNSA2.0 compliant VPN",
+        "military communications system",
+    ],
+)
+def test_recommend_json_selects_cnsa_for_hyphenated_joined_and_military_terms(
+    query: str,
+) -> None:
+    """These queries require CNSA 2.0 and recommend only its Level 5 algorithms."""
+    result = CliRunner().invoke(cli.app, ["recommend", query, "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["constraints"]["compliance_frameworks"] == ["cnsa_2_0"]
+    assert data["constraints"]["min_security_level"] == 5
+    recommended = {rec["algorithm_id"] for rec in data["recommendations"]}
+    assert recommended
+    assert recommended <= {"ml-kem-1024", "ml-dsa-87"}

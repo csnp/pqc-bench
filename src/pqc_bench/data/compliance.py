@@ -225,22 +225,49 @@ FRAMEWORK_ALIASES: dict[str, str] = {
     "pci_dss": "pci_dss_4",
 }
 
-# Terms that name CNSA 2.0 or the classified and national security systems it
-# covers. They are matched as whole words, because "nsa" also occurs inside
-# "transaction" and "classified" inside "unclassified".
+# Terms that name CNSA 2.0 or the classified, national security and military
+# systems it covers. They are matched as whole words, because "nsa" also occurs
+# inside "transaction" and "classified" inside "unclassified". "cnsa 2" matches
+# the joined spelling "CNSA2.0", where a digit follows "cnsa".
 CNSA_2_0_KEYWORDS: list[str] = [
     "cnsa",
+    "cnsa 2",
     "nsa",
     "classified",
     "top secret",
     "national security",
+    "military",
+]
+
+# Phrases that contain a CNSA 2.0 keyword but do not describe a system CNSA 2.0
+# covers. "Military-grade" describes the strength of commercial encryption.
+CNSA_2_0_EXCLUDED_PHRASES: list[str] = [
+    "military grade",
 ]
 
 
+def _phrase_pattern(phrase: str) -> re.Pattern[str]:
+    """Pattern for ``phrase`` as whole words, with its words joined by spaces,
+    hyphens, underscores or nothing."""
+    words = r"[\s_-]*".join(re.escape(word) for word in phrase.lower().split())
+    return re.compile(rf"(?<![a-z0-9]){words}(?![a-z0-9])")
+
+
 def contains_phrase(text: str, phrase: str) -> bool:
-    """Whether ``phrase`` occurs in ``text`` as whole words, not inside a longer word."""
-    pattern = rf"(?<![a-z0-9]){re.escape(phrase.lower())}(?![a-z0-9])"
-    return re.search(pattern, text.lower()) is not None
+    """Whether ``phrase`` occurs in ``text`` as whole words, not inside a longer word.
+
+    The words of ``phrase`` may be joined in ``text`` by spaces, hyphens,
+    underscores or nothing, so "top secret" also matches "top-secret".
+    """
+    return _phrase_pattern(phrase).search(text.lower()) is not None
+
+
+def mentions_cnsa_2_0(text: str) -> bool:
+    """Whether ``text`` names CNSA 2.0 or a system that CNSA 2.0 covers."""
+    text = text.lower()
+    for phrase in CNSA_2_0_EXCLUDED_PHRASES:
+        text = _phrase_pattern(phrase).sub(" ", text)
+    return any(contains_phrase(text, keyword) for keyword in CNSA_2_0_KEYWORDS)
 
 
 def get_framework(framework_id: str) -> ComplianceFramework | None:
@@ -281,7 +308,7 @@ def get_frameworks_for_context(context: str) -> list[ComplianceFramework]:
 
     for framework_id, keywords in keyword_mapping.items():
         if framework_id == "cnsa_2_0":
-            matched = any(contains_phrase(context_lower, kw) for kw in keywords)
+            matched = mentions_cnsa_2_0(context_lower)
         else:
             matched = any(kw in context_lower for kw in keywords)
         if matched:

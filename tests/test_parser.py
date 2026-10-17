@@ -117,6 +117,46 @@ class TestQueryParser:
         assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
         assert constraints.min_security_level == SecurityLevel.LEVEL_5
 
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "top-secret documents",
+            "topsecret archive",
+            "national-security system messaging",
+            "CNSA2.0 compliant VPN",
+            "cnsa-2.0 key exchange",
+        ],
+    )
+    def test_cnsa_inferred_from_hyphenated_and_joined_spellings(
+        self, parser: QueryParser, query: str
+    ) -> None:
+        """Hyphenated and joined spellings of CNSA 2.0 terms select CNSA 2.0."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_5
+
+    def test_cnsa_inferred_from_military_communications(self, parser: QueryParser) -> None:
+        """Military communications, a national security data example, select CNSA 2.0."""
+        constraints = parser.parse("military communications system")
+        assert ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_5
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "military-grade encryption for a chat app",
+            "military grade TLS for a web server",
+            "paramilitary history blog",
+        ],
+    )
+    def test_cnsa_not_inferred_from_military_grade(
+        self, parser: QueryParser, query: str
+    ) -> None:
+        """Military-grade describes commercial encryption, not a military system."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.CNSA_2_0 not in constraints.compliance_frameworks
+        assert constraints.min_security_level == SecurityLevel.LEVEL_3
+
     def test_embedded_context_keeps_cnsa_level_5(self, parser: QueryParser) -> None:
         """The embedded Level 1 floor does not lower the CNSA 2.0 Level 5 floor."""
         constraints = parser.parse("CNSA 2.0 embedded sensor with 256KB RAM")
