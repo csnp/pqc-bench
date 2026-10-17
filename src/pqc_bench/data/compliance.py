@@ -227,7 +227,8 @@ FRAMEWORK_ALIASES: dict[str, str] = {
 
 # "Military" alone also describes people and topics ("military spouse",
 # "military history"), so it names a system CNSA 2.0 covers only when one of
-# these words follows it.
+# these words follows it, directly ("military drone") or after one other word
+# ("military email system", "military ground station").
 MILITARY_SYSTEM_WORDS: list[str] = [
     "aircraft",
     "command",
@@ -243,6 +244,8 @@ MILITARY_SYSTEM_WORDS: list[str] = [
     "radios",
     "satellite",
     "satellites",
+    "station",
+    "stations",
     "system",
     "systems",
     "vehicle",
@@ -251,17 +254,37 @@ MILITARY_SYSTEM_WORDS: list[str] = [
     "weapons",
 ]
 
-# Terms that name CNSA 2.0 or the classified, national security and military
-# systems it covers. They are matched as whole words, because "nsa" also occurs
-# inside "transaction" and "classified" inside "unclassified". "cnsa 2" matches
-# the joined spelling "CNSA2.0", where a digit follows "cnsa".
-CNSA_2_0_KEYWORDS: list[str] = [
+# Words that make "military" describe people or a topic. One of them between
+# "military" and a system word does not name a military system: "military
+# family network", "military history data".
+MILITARY_PEOPLE_AND_TOPIC_WORDS: list[str] = [
+    "families",
+    "family",
+    "history",
+    "spouse",
+    "spouses",
+    "veteran",
+    "veterans",
+]
+
+# Terms other than "military" that name CNSA 2.0 or the classified and
+# national security systems it covers. They are matched as whole words,
+# because "nsa" also occurs inside "transaction" and "classified" inside
+# "unclassified". "cnsa 2" matches the joined spelling "CNSA2.0", where a digit
+# follows "cnsa".
+CNSA_2_0_TERMS: list[str] = [
     "cnsa",
     "cnsa 2",
     "nsa",
     "classified",
     "top secret",
     "national security",
+]
+
+# The CNSA 2.0 terms and the "military" phrases in which a system word follows
+# "military" directly. mentions_cnsa_2_0 also accepts one word between them.
+CNSA_2_0_KEYWORDS: list[str] = [
+    *CNSA_2_0_TERMS,
     *(f"military {word}" for word in MILITARY_SYSTEM_WORDS),
 ]
 
@@ -292,22 +315,39 @@ def contains_phrase(text: str, phrase: str) -> bool:
     return _phrase_pattern(phrase).search(text.lower()) is not None
 
 
+def _cnsa_2_0_patterns(prefix: str = "") -> list[re.Pattern[str]]:
+    """Patterns for the CNSA 2.0 terms and for "military" followed by a system
+    word, directly or after one other word, after the optional regex ``prefix``.
+    The word between them is not one of MILITARY_PEOPLE_AND_TOPIC_WORDS."""
+    system_words = "|".join(re.escape(word) for word in MILITARY_SYSTEM_WORDS)
+    people_words = "|".join(re.escape(word) for word in MILITARY_PEOPLE_AND_TOPIC_WORDS)
+    # The word between "military" and the system word is set apart by
+    # separators on both sides, so "military ecosystem" is not "military" +
+    # "eco" + "system".
+    between = rf"[\s_-]+(?!(?:{people_words})[\s_-])[a-z0-9]+[\s_-]+"
+    military = re.compile(
+        rf"(?<![a-z0-9]){prefix}military(?:{between}|[\s_-]*)(?:{system_words})(?![a-z0-9])"
+    )
+    return [*(_phrase_pattern(term, prefix) for term in CNSA_2_0_TERMS), military]
+
+
 def mentions_cnsa_2_0(text: str) -> bool:
     """Whether ``text`` names CNSA 2.0 or a system that CNSA 2.0 covers."""
     text = text.lower()
     for phrase in CNSA_2_0_EXCLUDED_PHRASES:
         text = _phrase_pattern(phrase).sub(" ", text)
-    for keyword in CNSA_2_0_KEYWORDS:
-        text = _phrase_pattern(keyword, NEGATION_PREFIX).sub(" ", text)
-    return any(contains_phrase(text, keyword) for keyword in CNSA_2_0_KEYWORDS)
+    for pattern in _cnsa_2_0_patterns(NEGATION_PREFIX):
+        text = pattern.sub(" ", text)
+    return any(pattern.search(text) for pattern in _cnsa_2_0_patterns())
 
 
 # Short use case, compliance and platform keywords that also occur inside
 # unrelated words ("ca" in "local", "phi" in "graphics", "nist" in
 # "administrator", "ios" in "scenarios", "dhe" in "adhere", "subca" in
-# "subcategory"). They are matched as whole words. Other short keywords such
-# as "ssl" and "tls" are matched anywhere, because the longer words that
-# contain them, such as "openssl" and "mtls", name the same thing.
+# "subcategory", "intel" in "intelligence"). They are matched as whole words.
+# Other short keywords such as "ssl" and "tls" are matched anywhere, because
+# the longer words that contain them, such as "openssl" and "mtls", name the
+# same thing.
 WHOLE_WORD_KEYWORDS: frozenset[str] = frozenset(
     {
         "api",
@@ -316,6 +356,7 @@ WHOLE_WORD_KEYWORDS: frozenset[str] = frozenset(
         "dh",
         "dhe",
         "ephi",
+        "intel",
         "ios",
         "iot",
         "nist",
@@ -342,7 +383,9 @@ def contains_keyword(text: str, keyword: str) -> bool:
 
     A keyword in WHOLE_WORD_KEYWORDS matches only as a whole word or that word
     followed by "s" ("api" matches "APIs" but not "rapid"). Any other keyword
-    matches anywhere, so "health" also matches "healthcare". Occurrences inside
+    matches anywhere, so "health" also matches "healthcare", and the words of
+    a keyword with several words may be joined by spaces, hyphens or
+    underscores, so "at rest" also matches "data-at-rest". Occurrences inside
     the keyword's KEYWORD_EXCLUDED_PHRASES do not count.
     """
     keyword = keyword.lower()
@@ -350,7 +393,8 @@ def contains_keyword(text: str, keyword: str) -> bool:
     for phrase in KEYWORD_EXCLUDED_PHRASES.get(keyword, []):
         text = _phrase_pattern(phrase).sub(" ", text)
     if keyword not in WHOLE_WORD_KEYWORDS:
-        return keyword in text
+        words = r"[\s_-]+".join(re.escape(word) for word in keyword.split())
+        return re.search(words, text) is not None
     pattern = rf"(?<![a-z0-9]){re.escape(keyword)}s?(?![a-z0-9])"
     return re.search(pattern, text) is not None
 

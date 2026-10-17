@@ -178,6 +178,39 @@ def test_contains_keyword_ignores_excluded_phrases() -> None:
     assert contains_keyword("encrypt data at rest", "at rest")
 
 
+def test_contains_keyword_joins_the_words_of_a_keyword_with_hyphens_or_underscores() -> None:
+    assert contains_keyword("data-at-rest encryption", "at rest")
+    assert contains_keyword("data_at_rest encryption", "at rest")
+    assert contains_keyword("key-exchange service", "key exchange")
+    assert not contains_keyword("rest at the end", "at rest")
+
+
+def test_contains_keyword_matches_intel_as_a_whole_word() -> None:
+    assert contains_keyword("Intel Xeon server", "intel")
+    assert contains_keyword("Intel-based laptop", "intel")
+    assert not contains_keyword("military intelligence", "intel")
+    assert not contains_keyword("intelligent document processing", "intel")
+
+
+def test_context_inference_accepts_one_word_between_military_and_a_system_word() -> None:
+    def inferred(context: str) -> list[str]:
+        return [fw.id for fw in get_frameworks_for_context(context)]
+
+    assert "cnsa_2_0" in inferred("military email system")
+    assert "cnsa_2_0" in inferred("military ground station")
+    assert "cnsa_2_0" in inferred("military secure communications")
+    assert "cnsa_2_0" in inferred("military-grade radio and military ground stations")
+    assert "cnsa_2_0" not in inferred("US military")
+    assert "cnsa_2_0" not in inferred("military email and chat system")
+    assert "cnsa_2_0" not in inferred("military tech ecosystem")
+    assert "cnsa_2_0" not in inferred("non-military email system")
+    assert "cnsa_2_0" not in inferred("military-grade email system")
+    assert "cnsa_2_0" not in inferred("military family network")
+    assert "cnsa_2_0" not in inferred("military history data")
+    assert "cnsa_2_0" not in inferred("military veterans data")
+    assert "cnsa_2_0" in inferred("military family network and military radio")
+
+
 def test_context_inference_ignores_negated_and_non_system_cnsa_terms() -> None:
     def inferred(context: str) -> list[str]:
         return [fw.id for fw in get_frameworks_for_context(context)]

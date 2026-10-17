@@ -105,11 +105,14 @@ pqc-bench explain <algorithm-name>
 - `falcon-512`, `falcon-1024`
 - `slh-dsa-128f`
 
+It also accepts the name of a hybrid mode listed by `pqc-bench hybrid`.
+
 **Examples:**
 ```bash
 pqc-bench explain ml-kem-768
 pqc-bench explain ml-dsa-44
 pqc-bench explain falcon-512
+pqc-bench explain SecP384r1MLKEM1024
 ```
 
 ### compare
@@ -170,6 +173,23 @@ When making recommendations, PQC-Bench considers:
 5. **Platform**: x86_64, ARM, embedded
 6. **Library availability**: Production-ready implementations
 
+### Queries That Select CNSA 2.0
+
+`recommend` applies CNSA 2.0 and its Level 5 floor when the query contains one of these:
+
+- `CNSA`, `CNSA 2.0`, `NSA`, `classified`, `top secret` or `national security`
+- `military` followed by a system word, directly or with one word between them: `military drone`, `military email system`, `military ground station`
+
+The system words are aircraft, command, communication(s), data, drone(s), intelligence, network(s), radio(s), satellite(s), station(s), system(s), vehicle(s) and weapon(s).
+
+The word between them cannot be one that describes people or a topic: family, families, history, spouse(s) or veteran(s).
+
+These do not select CNSA 2.0: `military` with no system word after it (`US military`, `military history blog`), a people or topic word between them (`military family network`), `military-grade`, and a term that follows `non` (`non-classified`, `non-military system`). To see the CNSA 2.0 requirements, run:
+
+```bash
+pqc-bench compliance cnsa-2.0
+```
+
 ### Recommendation Confidence
 
 Recommendations include confidence indicators:
@@ -219,6 +239,7 @@ pqc-bench hybrid
 | Mode | Components | Use Case |
 |------|------------|----------|
 | X25519MLKEM768 | X25519 + ML-KEM-768 | TLS key exchange |
+| SecP384r1MLKEM1024 | ECDH P-384 + ML-KEM-1024 | TLS key exchange for CNSA 2.0 systems |
 | ECDSA-P256+ML-DSA-44 | ECDSA + ML-DSA | Certificate signatures |
 
 **Why hybrid?**

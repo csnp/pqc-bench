@@ -19,6 +19,7 @@ from pqc_bench.data.critical_infrastructure import (
 from pqc_bench.data.libraries import (
     HYBRID_MODES,
     LIBRARIES,
+    get_hybrid_mode,
     get_recommended_hybrid_for_kem,
 )
 from pqc_bench.data.threat_model import DATA_PROFILES, DataClassification, assess_sndl_risk
@@ -121,3 +122,64 @@ def test_hybrid_command_names_the_standard_group() -> None:
     assert "X25519MLKEM768" in result.output
     assert "Chrome 131" in result.output
     assert not KYBER_GROUP.search(result.output)
+
+
+def test_recommended_hybrids_are_hybrid_modes() -> None:
+    """Every hybrid KEM that sector and threat recommend is listed by the hybrid command."""
+    names = {mode.name for mode in HYBRID_MODES.values()}
+    recommended = {profile.recommended_hybrid_kem for profile in SECTOR_PROFILES.values()}
+    for profile_id in DATA_PROFILES:
+        assessment = assess_sndl_risk(profile_id)
+        assert assessment is not None
+        recommended.add(assessment.recommended_hybrid)
+    recommended.discard(None)
+    assert "SecP384r1MLKEM1024" in recommended
+    assert recommended <= names
+
+
+def test_hybrid_kem_libraries_list_the_group() -> None:
+    for mode in HYBRID_MODES.values():
+        if mode.kem_or_sig != "kem":
+            continue
+        assert mode.libraries, mode.id
+        for lib_id in mode.libraries:
+            algorithms = LIBRARIES[lib_id].algorithms
+            assert algorithms is not None, lib_id
+            assert mode.name in algorithms.hybrid_kem, f"{mode.id}: {lib_id}"
+
+
+def test_secp384r1mlkem1024_mode() -> None:
+    mode = get_hybrid_mode("SecP384r1MLKEM1024")
+    assert mode is not None
+    assert mode is get_hybrid_mode("secp384r1-mlkem1024")
+    assert mode.classical_algorithm == "ECDH P-384"
+    assert mode.pqc_algorithm == "ML-KEM-1024"
+    assert "0x11ED" in mode.description
+    # Client key share: uncompressed P-384 point and ML-KEM-1024 encapsulation key.
+    assert mode.combined_size == 97 + 1568
+    assert get_hybrid_mode("X25519MLKEM768") is HYBRID_MODES["x25519-mlkem768"]
+    assert get_hybrid_mode("ml-kem-1024") is None
+
+
+def test_hybrid_command_lists_secp384r1mlkem1024() -> None:
+    result = CliRunner().invoke(app, ["hybrid"])
+    assert result.exit_code == 0
+    section = result.output.split("SecP384r1MLKEM1024", 1)[1].split("ECDSA P-256", 1)[0]
+    assert "TLS group 4589, 0x11ED" in section
+    assert "Classical: ECDH P-384" in section
+    assert "PQC: ML-KEM-1024" in section
+    assert "Libraries: OpenSSL 3.5+, wolfSSL" in section
+
+
+def test_explain_shows_a_hybrid_mode() -> None:
+    runner = CliRunner()
+    result = runner.invoke(app, ["explain", "SecP384r1MLKEM1024"])
+    assert result.exit_code == 0
+    assert "Unknown algorithm" not in result.output
+    assert "PQC: ML-KEM-1024" in result.output
+    assert "Libraries: OpenSSL 3.5+, wolfSSL" in result.output
+
+    result = runner.invoke(app, ["explain", "no-such-mode"])
+    assert result.exit_code == 1
+    assert "Unknown algorithm: no-such-mode" in result.output
+    assert "SecP384r1MLKEM1024" in result.output

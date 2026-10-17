@@ -17,7 +17,9 @@ from .data.compliance import COMPLIANCE_FRAMEWORKS, get_framework
 from .data.libraries import (
     HYBRID_MODES,
     LIBRARIES,
+    HybridMode,
     ProductionReadiness,
+    get_hybrid_mode,
     get_libraries_for_algorithm,
     get_libraries_with_fips,
     get_production_ready_libraries,
@@ -146,7 +148,7 @@ def explain(
     ),
 ) -> None:
     """
-    Show detailed information about a specific algorithm.
+    Show detailed information about a specific algorithm or hybrid mode.
 
     Examples:
 
@@ -155,15 +157,26 @@ def explain(
         pqc-bench explain ml-kem-768
 
         pqc-bench explain falcon-512
+
+        pqc-bench explain SecP384r1MLKEM1024
     """
     algo = get_algorithm(algorithm)
 
     if algo is None:
+        mode = get_hybrid_mode(algorithm)
+        if mode is not None:
+            console.print()
+            _print_hybrid_mode(mode)
+            return
         console.print(f"[red]Unknown algorithm: {algorithm}[/red]")
         console.print()
         console.print("Available algorithms:")
         for algo_id in sorted(ALGORITHMS.keys()):
             console.print(f"  • {algo_id}")
+        console.print()
+        console.print("Hybrid modes:")
+        for hybrid_mode in HYBRID_MODES.values():
+            console.print(f"  • {hybrid_mode.name}")
         raise typer.Exit(1)
 
     terminal.print_algorithm_details(algo)
@@ -740,6 +753,43 @@ def libraries(
         console.print()
 
 
+def _print_hybrid_mode(mode: HybridMode) -> None:
+    """Print one hybrid mode: components, size, support and libraries."""
+    console.print(f"[bold cyan]{mode.name}[/bold cyan]")
+    console.print("─" * 50)
+    console.print(f"  {mode.description}")
+    console.print()
+    console.print(f"  [dim]Classical:[/dim] {mode.classical_algorithm}")
+    console.print(f"  [dim]PQC:[/dim] {mode.pqc_algorithm}")
+    console.print(f"  [dim]Combined size:[/dim] {mode.combined_size:,} bytes")
+    console.print()
+
+    # Support matrix
+    supports = []
+    if mode.chrome_support:
+        supports.append("[green]Chrome[/green]")
+    if mode.cloudflare_support:
+        supports.append("[green]Cloudflare[/green]")
+    if mode.tls_support:
+        supports.append("[green]TLS[/green]")
+
+    if supports:
+        console.print(f"  [dim]Browser/CDN support:[/dim] {', '.join(supports)}")
+    else:
+        console.print("  [dim]Browser/CDN support:[/dim] [yellow]Not yet[/yellow]")
+
+    if mode.ietf_draft:
+        console.print(f"  [dim]IETF reference:[/dim] {mode.ietf_draft}")
+
+    console.print(f"  [dim]Recommended until:[/dim] {mode.recommended_until}")
+
+    if mode.libraries:
+        libs = [LIBRARIES.get(lib_id, type("", (), {"name": lib_id})).name for lib_id in mode.libraries]
+        console.print(f"  [dim]Libraries:[/dim] {', '.join(libs)}")
+
+    console.print()
+
+
 @app.command()
 def hybrid(
     use_case: str | None = typer.Option(
@@ -779,39 +829,7 @@ def hybrid(
         modes = list(HYBRID_MODES.values())
 
     for mode in modes:
-        console.print(f"[bold cyan]{mode.name}[/bold cyan]")
-        console.print("─" * 50)
-        console.print(f"  {mode.description}")
-        console.print()
-        console.print(f"  [dim]Classical:[/dim] {mode.classical_algorithm}")
-        console.print(f"  [dim]PQC:[/dim] {mode.pqc_algorithm}")
-        console.print(f"  [dim]Combined size:[/dim] {mode.combined_size:,} bytes")
-        console.print()
-
-        # Support matrix
-        supports = []
-        if mode.chrome_support:
-            supports.append("[green]Chrome[/green]")
-        if mode.cloudflare_support:
-            supports.append("[green]Cloudflare[/green]")
-        if mode.tls_support:
-            supports.append("[green]TLS[/green]")
-
-        if supports:
-            console.print(f"  [dim]Browser/CDN support:[/dim] {', '.join(supports)}")
-        else:
-            console.print("  [dim]Browser/CDN support:[/dim] [yellow]Not yet[/yellow]")
-
-        if mode.ietf_draft:
-            console.print(f"  [dim]IETF reference:[/dim] {mode.ietf_draft}")
-
-        console.print(f"  [dim]Recommended until:[/dim] {mode.recommended_until}")
-
-        if mode.libraries:
-            libs = [LIBRARIES.get(lib_id, type("", (), {"name": lib_id})).name for lib_id in mode.libraries]
-            console.print(f"  [dim]Libraries:[/dim] {', '.join(libs)}")
-
-        console.print()
+        _print_hybrid_mode(mode)
 
     console.print("[bold]Why Hybrid?[/bold]")
     console.print("─" * 40)

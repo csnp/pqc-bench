@@ -8,8 +8,11 @@ import pytest
 from typer.testing import CliRunner
 
 from pqc_bench.cli import app
+from pqc_bench.core.constraints import ComplianceFramework, SecurityLevel
 from pqc_bench.core.engine import RecommendationEngine
 from pqc_bench.core.parser import QueryParser
+from pqc_bench.data.compliance import MILITARY_PEOPLE_AND_TOPIC_WORDS, MILITARY_SYSTEM_WORDS
+from pqc_bench.data.libraries import HYBRID_MODES
 
 ROOT = Path(__file__).resolve().parent.parent
 USER_DOCS = [ROOT / "README.md", ROOT / "ROADMAP.md", *sorted((ROOT / "docs").glob("*.md"))]
@@ -83,6 +86,68 @@ def test_readme_example_results_match_the_cli() -> None:
         "embedded sensor with 256KB RAM",
         "REST API with JWT auth, running on AWS Lambda",
     } <= set(checked)
+
+
+def test_user_guide_hybrid_table_lists_every_hybrid_kem() -> None:
+    guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
+    for mode in HYBRID_MODES.values():
+        if mode.kem_or_sig == "kem":
+            assert f"| {mode.name} |" in guide, mode.name
+
+
+def _documented_words(prefix: str, last: str) -> set[str]:
+    """The words listed in the user guide line that starts with ``prefix``.
+
+    The list is separated by commas, ends with ``last`` before its final word,
+    and "word(s)" stands for "word" and "words".
+    """
+    guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
+    line = next(line for line in guide.splitlines() if line.startswith(prefix))
+    documented = set()
+    for word in line.removeprefix(prefix).rstrip(".").replace(f" {last} ", ", ").split(", "):
+        if word.endswith("(s)"):
+            documented |= {word[:-3], word[:-3] + "s"}
+        else:
+            documented.add(word)
+    return documented
+
+
+def test_user_guide_names_the_military_system_words() -> None:
+    """The guide lists the words after "military" that select CNSA 2.0."""
+    assert _documented_words("The system words are ", "and") == set(MILITARY_SYSTEM_WORDS)
+
+
+def test_user_guide_names_the_military_people_and_topic_words() -> None:
+    """The guide lists the words that cannot stand between "military" and a system word."""
+    prefix = "The word between them cannot be one that describes people or a topic: "
+    assert _documented_words(prefix, "or") == set(MILITARY_PEOPLE_AND_TOPIC_WORDS)
+
+
+@pytest.mark.parametrize(
+    ("query", "selects"),
+    [
+        ("CNSA", True),
+        ("CNSA 2.0", True),
+        ("NSA", True),
+        ("classified", True),
+        ("top secret", True),
+        ("national security", True),
+        ("military drone", True),
+        ("military email system", True),
+        ("military ground station", True),
+        ("US military", False),
+        ("military history blog", False),
+        ("military family network", False),
+        ("military-grade", False),
+        ("non-classified", False),
+        ("non-military system", False),
+    ],
+)
+def test_user_guide_cnsa_2_0_query_examples(query: str, selects: bool) -> None:
+    """The queries the guide names select CNSA 2.0 and the Level 5 floor, or neither."""
+    constraints = QueryParser().parse(query)
+    assert (ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks) is selects
+    assert (constraints.min_security_level == SecurityLevel.LEVEL_5) is selects
 
 
 @pytest.mark.parametrize("path", ALL_DOCS, ids=[str(p.relative_to(ROOT)) for p in ALL_DOCS])

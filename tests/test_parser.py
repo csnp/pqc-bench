@@ -295,7 +295,15 @@ class TestQueryParser:
         assert constraints.needs_kem is True
         assert constraints.needs_signature is False
 
-    @pytest.mark.parametrize("query", ["encrypt data at rest", "data at rest encryption for a database"])
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "encrypt data at rest",
+            "data at rest encryption for a database",
+            "data-at-rest encryption",
+            "data_at_rest encryption",
+        ],
+    )
     def test_data_at_rest_selects_file_encryption(self, parser: QueryParser, query: str) -> None:
         """"rest" in "at rest" is not the REST API keyword."""
         constraints = parser.parse(query)
@@ -327,6 +335,16 @@ class TestQueryParser:
         """IIoT selects the embedded platform and iOS the mobile one."""
         assert parser.parse(query).platform == platform
 
+    @pytest.mark.parametrize("query", ["military intelligence", "intelligent document processing"])
+    def test_intel_inside_other_words_selects_no_platform(self, parser: QueryParser, query: str) -> None:
+        """"intel" in "intelligence" and "intelligent" sets no x86_64 platform."""
+        assert parser.parse(query).platform is None
+
+    @pytest.mark.parametrize("query", ["Intel NUC", "Intel-based laptop", "Intel Xeon server"])
+    def test_intel_selects_x86_64(self, parser: QueryParser, query: str) -> None:
+        """"Intel" as a word still selects the x86_64 AVX2 platform."""
+        assert parser.parse(query).platform == Platform.X86_64_AVX2
+
     @pytest.mark.parametrize(
         "query",
         [
@@ -335,6 +353,9 @@ class TestQueryParser:
             "military spouse support app",
             "non-classified email",
             "non national security workload",
+            "US military",
+            "non-military email system",
+            "military tech ecosystem",
         ],
     )
     def test_negated_and_non_system_military_terms_do_not_select_cnsa(self, parser: QueryParser, query: str) -> None:
@@ -344,7 +365,15 @@ class TestQueryParser:
         assert constraints.min_security_level == SecurityLevel.LEVEL_3
 
     @pytest.mark.parametrize(
-        "query", ["military communications system", "military drone telemetry", "classified email"]
+        "query",
+        [
+            "military communications system",
+            "military drone telemetry",
+            "classified email",
+            "military email system",
+            "military ground station",
+            "military secure communications",
+        ],
     )
     def test_military_systems_and_classified_data_select_cnsa(self, parser: QueryParser, query: str) -> None:
         """A military system or classified data still selects CNSA 2.0 and the Level 5 floor."""

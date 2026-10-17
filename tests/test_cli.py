@@ -34,6 +34,9 @@ def test_recommend_json_is_valid_on_a_narrow_console(
         "top-secret documents",
         "CNSA2.0 compliant VPN",
         "military communications system",
+        "military email system",
+        "military ground station",
+        "military secure communications",
     ],
 )
 def test_recommend_json_selects_cnsa_for_hyphenated_joined_and_military_terms(
@@ -74,6 +77,7 @@ def test_recommend_json_ignores_short_keywords_inside_other_words() -> None:
         "military history blog",
         "military spouse support app",
         "non-classified email",
+        "US military",
     ],
 )
 def test_recommend_json_keeps_level_3_for_negated_and_non_system_military_terms(query: str) -> None:
@@ -91,6 +95,7 @@ def test_recommend_json_keeps_level_3_for_negated_and_non_system_military_terms(
     [
         ("encrypt data at rest", "file_encryption", "kem"),
         ("data at rest encryption for a database", "file_encryption", "kem"),
+        ("data-at-rest encryption", "file_encryption", "kem"),
         ("DHE key agreement", "key_exchange", "kem"),
         ("rootCA rotation", "certificate", "signature"),
     ],
@@ -105,3 +110,18 @@ def test_recommend_json_selects_the_use_case_and_algorithm_type(
     assert data["constraints"]["use_case"] == use_case
     assert data["recommendations"]
     assert all(rec["type"] == algorithm_type for rec in data["recommendations"])
+
+
+@pytest.mark.parametrize(
+    ("query", "platform"),
+    [
+        ("military intelligence", None),
+        ("intelligent document processing", None),
+        ("Intel Xeon server", "x86_64_avx2"),
+    ],
+)
+def test_recommend_json_matches_intel_only_as_a_word(query: str, platform: str | None) -> None:
+    """"intelligence" and "intelligent" set no platform; "Intel" selects x86_64 AVX2."""
+    result = CliRunner().invoke(cli.app, ["recommend", query, "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["constraints"]["platform"] == platform
