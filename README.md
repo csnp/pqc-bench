@@ -68,7 +68,7 @@ Ask in plain English, get specific answers with reasoning:
 ```bash
 $ pqc-bench recommend "REST API with JWT auth, running on AWS Lambda"
 
-╭────────────────────────── PQC-Bench Recommendation ──────────────────────────╮
+╭──────────────────────── #1 PQC-Bench Recommendation ─────────────────────────╮
 │ ML-DSA-87  (FIPS 204)                                                        │
 │                                                                              │
 │ Security     NIST Level 5 (256-bit)                                          │

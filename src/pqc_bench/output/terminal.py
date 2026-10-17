@@ -59,11 +59,18 @@ class TerminalOutput:
 
         panel = Panel(
             content,
-            title="[bold]PQC-Bench Recommendation[/bold]",
+            title=f"[bold]#{primary.rank} PQC-Bench Recommendation[/bold]",
             border_style="blue",
             box=box.ROUNDED,
         )
         self.console.print(panel)
+
+        # Print the rest of the top recommendations
+        if len(result.recommendations) > 1:
+            self.console.print()
+            self.console.print("[dim]Also recommended:[/dim]")
+            for rec in result.recommendations[1:]:
+                self._print_alternative_brief(rec)
 
         # Print alternatives
         if result.alternatives:
@@ -116,6 +123,13 @@ class TerminalOutput:
         self.console.print()
         self.console.print("[bold]Scoring Factors[/bold]")
         self._print_scoring_table(primary)
+
+        # Rest of the top recommendations with details
+        if len(result.recommendations) > 1:
+            self.console.print()
+            self.console.print("[bold]Also recommended[/bold]")
+            for rec in result.recommendations[1:]:
+                self._print_alternative_detailed(rec)
 
         # Alternatives with details
         if result.alternatives:
@@ -220,16 +234,15 @@ class TerminalOutput:
         self.console.print(table)
 
     def _print_alternative_brief(self, rec: Recommendation) -> None:
-        """Print brief alternative recommendation."""
+        """Print a ranked recommendation or alternative on one line."""
         algo = rec.algorithm
-        warning = rec.warnings[0] if rec.warnings else ""
-        self.console.print(
-            f"  [dim]#{rec.rank}[/dim] {algo.names.nist_name} (Score: {rec.score:.0f}) - "
-            f"[dim]{warning}[/dim]"
-        )
+        line = f"  [dim]#{rec.rank}[/dim] {algo.names.nist_name} (Score: {rec.score:.0f})"
+        if rec.warnings:
+            line += f" - [dim]{rec.warnings[0]}[/dim]"
+        self.console.print(line)
 
     def _print_alternative_detailed(self, rec: Recommendation) -> None:
-        """Print detailed alternative recommendation."""
+        """Print a ranked recommendation or alternative with its reasons."""
         algo = rec.algorithm
         self.console.print()
         self.console.print(

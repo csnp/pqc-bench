@@ -9,6 +9,8 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from pqc_bench import cli
+from pqc_bench.core.engine import RecommendationEngine
+from pqc_bench.core.parser import QueryParser
 from pqc_bench.output.terminal import TerminalOutput
 
 
@@ -309,3 +311,76 @@ def test_commands_named_in_the_healthcare_baseline_note_run(args: list[str]) -> 
     result = CliRunner().invoke(cli.app, args)
     assert result.exit_code == 0
     assert "ML-KEM-768" in result.output
+
+
+def _recommend_text(monkeypatch: pytest.MonkeyPatch, *args: str) -> str:
+    """Run recommend in text mode on a 100-column console and return its output."""
+    console = Console(width=100)
+    monkeypatch.setattr(cli, "console", console)
+    monkeypatch.setattr(cli.terminal, "console", console)
+    result = CliRunner().invoke(cli.app, ["recommend", *args])
+    assert result.exit_code == 0
+    return result.output
+
+
+@pytest.mark.parametrize("mode", [[], ["--verbose"]])
+def test_recommend_text_shows_every_top_rank_before_the_alternatives(
+    monkeypatch: pytest.MonkeyPatch, mode: list[str]
+) -> None:
+    """The default --top 3 shows ranks 1, 2 and 3, then rank 4 under Alternatives."""
+    output = _recommend_text(monkeypatch, "mobile banking app", *mode)
+    for rank in ("#1", "#2", "#3"):
+        assert rank in output
+        assert output.index(rank) < output.index("Alternatives")
+    assert output.index("#4") > output.index("Alternatives")
+
+
+def test_recommend_text_top_1_lists_the_next_ranks_as_alternatives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--top 1 shows the panel, then ranks 2 and 3 under Alternatives."""
+    output = _recommend_text(monkeypatch, "mobile banking app", "--top", "1")
+    assert "#1" in output
+    assert output.index("#2") > output.index("Alternatives")
+    assert output.index("#3") > output.index("Alternatives")
+    assert "#4" not in output
+
+
+def test_recommend_top_above_the_candidate_count_recommends_every_candidate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """--top 99 recommends every candidate with contiguous ranks and leaves no alternatives."""
+    query = "mobile banking app"
+    result = CliRunner().invoke(cli.app, ["recommend", query, "--top", "99", "--json"])
+    assert result.exit_code == 0
+    ranks = [rec["rank"] for rec in json.loads(result.output)["recommendations"]]
+    assert ranks == list(range(1, len(ranks) + 1))
+
+    engine_result = RecommendationEngine().recommend(
+        QueryParser().parse(query), query=query, top_n=99
+    )
+    assert len(engine_result.recommendations) == len(ranks)
+    assert engine_result.alternatives == []
+
+    output = _recommend_text(monkeypatch, query, "--top", "99")
+    assert "Alternatives" not in output
+    for rank in ranks:
+        assert f"#{rank} " in output
+
+
+@pytest.mark.parametrize("top", ["0", "-1"])
+def test_recommend_rejects_a_top_below_1(top: str) -> None:
+    """--top 0 and --top -1 are usage errors that name the option."""
+    result = CliRunner().invoke(cli.app, ["recommend", "x", "--top", top])
+    assert result.exit_code == 2
+    assert "--top" in result.output
+
+
+@pytest.mark.parametrize("mode", [[], ["--top", "1"]])
+def test_recommend_text_brief_lines_do_not_end_in_a_dash(
+    monkeypatch: pytest.MonkeyPatch, mode: list[str]
+) -> None:
+    """A ranked line with no warning ends after its score."""
+    output = _recommend_text(monkeypatch, "mobile banking app", *mode)
+    assert re.search(r"\(Score: \d+\)", output)
+    assert not re.search(r"\(Score: \d+\) -\s*$", output, re.MULTILINE)
