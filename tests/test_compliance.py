@@ -4,7 +4,11 @@ from typer.testing import CliRunner
 
 from pqc_bench.cli import app
 from pqc_bench.data.algorithms import get_algorithm
-from pqc_bench.data.compliance import get_framework, get_frameworks_for_context
+from pqc_bench.data.compliance import (
+    contains_keyword,
+    get_framework,
+    get_frameworks_for_context,
+)
 
 # NSA Cybersecurity Advisory PP-22-1338, "Announcing the Commercial National
 # Security Algorithm Suite 2.0", as posted at this address in May 2025.
@@ -124,6 +128,31 @@ def test_context_inference_matches_hyphenated_and_joined_cnsa_terms() -> None:
     assert "cnsa_2_0" in inferred("CNSA2.0 required")
     assert "cnsa_2_0" in inferred("military communications")
     assert "cnsa_2_0" not in inferred("military-grade encryption")
+
+
+def test_context_inference_matches_short_terms_as_whole_words() -> None:
+    def inferred(context: str) -> list[str]:
+        return [fw.id for fw in get_frameworks_for_context(context)]
+
+    assert "hipaa" not in inferred("graphics rendering service")
+    assert "hipaa" not in inferred("philosophy course platform")
+    assert "hipaa" in inferred("store PHI for a clinic")
+    assert "fips_140_3" not in inferred("administrator dashboard")
+    assert "fips_140_3" in inferred("NIST approved algorithms")
+
+
+def test_contains_keyword_matches_whole_word_keywords_as_words_or_plurals() -> None:
+    assert contains_keyword("REST APIs", "api")
+    assert not contains_keyword("rapid prototyping", "api")
+    assert contains_keyword("rotate the CAs", "ca")
+    assert not contains_keyword("local cache", "ca")
+
+
+def test_contains_keyword_matches_other_keywords_inside_words() -> None:
+    assert contains_keyword("healthcare records", "health")
+    assert contains_keyword("compact signatures", "signature")
+    assert contains_keyword("OpenSSL upgrade", "ssl")
+    assert contains_keyword("mTLS between services", "tls")
 
 
 class TestCNSA20AlgorithmApprovals:

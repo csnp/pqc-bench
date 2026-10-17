@@ -7,7 +7,12 @@ with intelligent inference of implicit requirements.
 
 import re
 
-from ..data.compliance import CNSA_2_0_KEYWORDS, get_frameworks_for_context, mentions_cnsa_2_0
+from ..data.compliance import (
+    CNSA_2_0_KEYWORDS,
+    contains_keyword,
+    get_frameworks_for_context,
+    mentions_cnsa_2_0,
+)
 from .constraints import (
     ComplianceFramework,
     Constraints,
@@ -198,7 +203,7 @@ class QueryParser:
     def _detect_use_case(self, query: str, constraints: Constraints) -> None:
         """Detect primary use case from query."""
         for use_case, keywords in self.USECASE_PATTERNS.items():
-            if any(kw in query for kw in keywords):
+            if any(contains_keyword(query, kw) for kw in keywords):
                 constraints.use_case = use_case
                 return
 
@@ -208,7 +213,7 @@ class QueryParser:
             if framework == ComplianceFramework.CNSA_2_0:
                 matched = mentions_cnsa_2_0(query)
             else:
-                matched = any(kw in query for kw in keywords)
+                matched = any(contains_keyword(query, kw) for kw in keywords)
             if matched:
                 constraints.compliance_frameworks.append(framework)
 
