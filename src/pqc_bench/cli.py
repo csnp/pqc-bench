@@ -1014,6 +1014,14 @@ def threat(
             raise typer.Exit(1)
 
         profiles = get_profiles_by_urgency(urg)
+        if not profiles:
+            # A valid level can have no profile: say so instead of printing an empty list.
+            levels_in_use = ", ".join(level.value for level in ThreatUrgency if get_profiles_by_urgency(level))
+            console.print(f"[yellow]No data profile has {urg.value.upper()} urgency.[/yellow]")
+            console.print(f"Levels that have profiles: {levels_in_use}")
+            console.print()
+            return
+
         console.print(f"[bold]Data profiles with {escape(urgency.upper())} urgency:[/bold]")
         console.print()
         for profile in profiles:
