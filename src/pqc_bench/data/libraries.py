@@ -600,12 +600,15 @@ def get_recommended_hybrid_for_kem() -> HybridMode:
 def get_hybrid_modes_for_use_case(use_case: str) -> list[HybridMode]:
     """Get hybrid modes suitable for a use case."""
     use_case_lower = use_case.lower()
+    kem_modes = [mode for mode in HYBRID_MODES.values() if mode.kem_or_sig == "kem"]
 
-    if any(
-        kw in use_case_lower for kw in ["tls", "https", "web", "browser"]
-    ):
-        # TLS: X25519MLKEM768 is the only one with browser support
-        return [HYBRID_MODES["x25519-mlkem768"]]
+    if "browser" in use_case_lower:
+        # Browsers: KEM hybrids with Chrome support
+        return [mode for mode in kem_modes if mode.chrome_support]
+
+    if any(kw in use_case_lower for kw in ["tls", "https", "web"]):
+        # TLS: KEM hybrids with TLS support
+        return [mode for mode in kem_modes if mode.tls_support]
 
     if any(
         kw in use_case_lower for kw in ["certificate", "signing", "code signing"]
