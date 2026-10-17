@@ -1,7 +1,10 @@
 """Tests for CLI output formats."""
 
+import inspect
+import io
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -11,7 +14,14 @@ from typer.testing import CliRunner
 from pqc_bench import cli
 from pqc_bench.core.engine import RecommendationEngine
 from pqc_bench.core.parser import QueryParser
-from pqc_bench.output.terminal import TerminalOutput
+from pqc_bench.data.algorithms import ALGORITHMS
+from pqc_bench.data.libraries import (
+    HYBRID_KEM_USE_CASE_WORDS,
+    HYBRID_MODES,
+    HYBRID_SIGNATURE_USE_CASE_WORDS,
+)
+from pqc_bench.data.threat_model import ThreatUrgency
+from pqc_bench.output.terminal import TerminalOutput, print_rule
 
 
 @pytest.mark.parametrize(
@@ -457,3 +467,207 @@ def test_recommend_rejects_an_empty_query(query: str, extra: list[str]) -> None:
     assert "{" not in result.stdout
     assert "empty" in result.output
     assert "TLS for a web server" in result.output
+
+
+def _wide_console(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Print to a 200-column console so that no message is wrapped."""
+    monkeypatch.setattr(cli, "console", Console(width=200))
+
+
+@pytest.mark.parametrize("value", ["bogus", "kemx", "s", ""])
+def test_list_unknown_type_exits_1_and_names_the_valid_types(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    """An unknown --type names the valid types and exits 1 instead of printing an empty table."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["list", "--type", value])
+    assert result.exit_code == 1
+    assert f"Unknown algorithm type: {value}" in result.output
+    assert "Valid types: kem, signature" in result.output
+    assert "Available Algorithms" not in result.output
+
+
+@pytest.mark.parametrize(
+    ("value", "algorithm_type"),
+    [("kem", "kem"), ("KEM", "kem"), ("kems", "kem"), ("signature", "signature"), ("Signatures", "signature")],
+)
+def test_list_type_shows_only_that_type(monkeypatch: pytest.MonkeyPatch, value: str, algorithm_type: str) -> None:
+    """--type accepts either type in any case, singular or plural, and lists only its algorithms."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["list", "--type", value])
+    assert result.exit_code == 0
+    for algo_id, algo in ALGORITHMS.items():
+        assert (f" {algo_id} " in result.output) == (algo.algorithm_type == algorithm_type), algo_id
+
+
+@pytest.mark.parametrize("value", ["bogus", "kem", ""])
+def test_hybrid_unknown_use_case_exits_1_and_lists_the_accepted_words(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """A use case that matches no use-case word lists the accepted words instead of one hybrid."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["hybrid", "--use-case", value])
+    assert result.exit_code == 1
+    assert f"Unknown use case: {value}" in result.output
+    assert f"{', '.join(HYBRID_KEM_USE_CASE_WORDS)}: hybrid key exchange" in result.output
+    assert f"{', '.join(HYBRID_SIGNATURE_USE_CASE_WORDS)}: hybrid signatures" in result.output
+    assert "Hybrid Cryptography Modes" not in result.output
+
+
+def _hybrid_sections(output: str) -> list[str]:
+    """The names of the hybrid modes printed, each on a line of its own."""
+    lines = output.splitlines()
+    return [mode.name for mode in HYBRID_MODES.values() if mode.name in lines]
+
+
+@pytest.mark.parametrize(
+    ("use_case", "kind"), [("signature", "signature"), ("certificate", "signature"), ("tls", "kem")]
+)
+def test_hybrid_use_case_lists_the_hybrids_of_its_kind(
+    monkeypatch: pytest.MonkeyPatch, use_case: str, kind: str
+) -> None:
+    """--use-case signature lists the composite signature hybrids, as certificate does."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["hybrid", "--use-case", use_case])
+    assert result.exit_code == 0
+    shown = _hybrid_sections(result.output)
+    assert shown
+    assert all(mode.kem_or_sig == kind for mode in HYBRID_MODES.values() if mode.name in shown)
+    if kind == "signature":
+        assert shown == [mode.name for mode in HYBRID_MODES.values() if mode.kem_or_sig == "signature"]
+
+
+def test_hybrid_lists_tls_support_on_its_own_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """TLS is not named as a browser or CDN; each mode has a TLS support line of its own."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["hybrid"])
+    assert result.exit_code == 0
+    lines = [line.strip() for line in result.output.splitlines()]
+    browser_lines = [line for line in lines if line.startswith("Browser/CDN support:")]
+    tls_lines = [line for line in lines if line.startswith("TLS support:")]
+    assert len(browser_lines) == len(HYBRID_MODES)
+    assert not any("TLS" in line for line in browser_lines)
+    assert "Browser/CDN support: Chrome, Cloudflare" in browser_lines
+    assert tls_lines == [
+        f"TLS support: {'Yes' if mode.tls_support else 'Not yet'}" for mode in HYBRID_MODES.values()
+    ]
+
+
+@pytest.mark.parametrize(
+    ("args", "value"),
+    [(["list", "--type", "[/red]"], "[/red]"), (["hybrid", "--use-case", "[/bold]"], "[/bold]")],
+)
+def test_a_new_error_shows_a_value_with_square_brackets_as_typed(
+    monkeypatch: pytest.MonkeyPatch, args: list[str], value: str
+) -> None:
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == 1
+    assert value in result.output
+
+
+@pytest.mark.parametrize(
+    ("data_type", "label"), [("healthcare_records", "Secret"), ("national_security", "Top Secret")]
+)
+def test_threat_shows_the_classification_as_a_label(data_type: str, label: str) -> None:
+    """The classification reads "Top Secret", not the stored value "top_secret"."""
+    result = CliRunner().invoke(cli.app, ["threat", "--data-type", data_type])
+    assert result.exit_code == 0
+    assert f"Classification: {label}" in [line.strip() for line in result.output.splitlines()]
+    assert "_" not in next(line for line in result.output.splitlines() if "Classification:" in line)
+
+
+def _option_help(command: Callable[..., object], parameter: str) -> str:
+    """The help text of a typer option, as declared on the command function."""
+    option = inspect.signature(command).parameters[parameter].default
+    return str(option.help)
+
+
+def test_threat_urgency_help_and_error_list_the_same_levels(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--help and the error for an unknown level list every urgency level, in the same order."""
+    help_match = re.fullmatch(r"Filter by urgency level \((.*)\)", _option_help(cli.threat, "urgency"))
+    assert help_match is not None
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["threat", "--urgency", "bogus"])
+    assert result.exit_code == 1
+    error_match = re.search(r"Valid levels: (.*)", result.output)
+    assert error_match is not None
+    levels = ", ".join(level.value for level in ThreatUrgency)
+    assert help_match.group(1) == levels
+    assert error_match.group(1).strip() == levels
+
+
+@pytest.mark.parametrize("level", [level.value for level in ThreatUrgency])
+def test_threat_accepts_every_listed_urgency_level(level: str) -> None:
+    result = CliRunner().invoke(cli.app, ["threat", "--urgency", level])
+    assert result.exit_code == 0
+
+
+@pytest.mark.parametrize("chain_length", ["0", "-3"])
+@pytest.mark.parametrize("env", [{}, COLOUR_FORCED], ids=["plain", "colour"])
+def test_impact_rejects_a_chain_length_below_1(chain_length: str, env: dict[str, str | None]) -> None:
+    """--chain-length 0 and -3 are usage errors that name the option, with no impact table."""
+    result = CliRunner().invoke(cli.app, ["impact", "ml-dsa-65", "--chain-length", chain_length], env=env)
+    assert result.exit_code == 2
+    assert "--chain-length" in _without_ansi(result.output)
+    assert "Chain (" not in result.output
+
+
+def test_impact_accepts_a_chain_length_of_1() -> None:
+    result = CliRunner().invoke(cli.app, ["impact", "ml-dsa-65", "--chain-length", "1"])
+    assert result.exit_code == 0
+    assert "Chain (1)" in result.output
+
+
+@pytest.mark.parametrize(("width", "printed"), [(80, 70), (70, 70), (60, 60), (20, 20)])
+def test_print_rule_is_capped_at_the_console_width(width: int, printed: int) -> None:
+    buffer = io.StringIO()
+    print_rule(Console(file=buffer, width=width), "═", 70)
+    assert buffer.getvalue() == "═" * printed + "\n"
+
+
+RULE_LINE = re.compile(r"═+|─+")
+
+
+@pytest.mark.parametrize("width", [30, 60])
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["list"],
+        ["compare", "ml-dsa-44", "falcon-512"],
+        ["migrate", "--from", "rsa-2048"],
+        ["compliance", "cnsa-2.0"],
+        ["libraries"],
+        ["hybrid"],
+        ["threat", "--list"],
+        ["threat", "--data-type", "healthcare_records"],
+        ["impact", "ml-dsa-65"],
+        ["impact", "ml-kem-768"],
+        ["sector", "--list"],
+        ["sector", "--deadlines"],
+        ["sector", "space"],
+        ["explain", "ml-kem-768"],
+        ["recommend", "TLS for a web server", "--verbose"],
+    ],
+)
+def test_rules_fit_a_narrow_console(monkeypatch: pytest.MonkeyPatch, width: int, args: list[str]) -> None:
+    """Each rule prints as one line no wider than the console instead of wrapping onto a second line."""
+    console = Console(width=width)
+    monkeypatch.setattr(cli, "console", console)
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(console))
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == 0
+    lines = result.output.splitlines()
+    rules = [index for index, line in enumerate(lines) if RULE_LINE.fullmatch(line)]
+    assert rules
+    for index in rules:
+        assert len(lines[index]) <= width
+        assert index + 1 not in rules, f"the rule on line {index + 1} wrapped onto the next line"
+
+
+@pytest.mark.parametrize("algorithm", ["falcon-512", "falcon-1024", "FN-DSA-512"])
+def test_libraries_algorithm_lists_the_falcon_libraries(monkeypatch: pytest.MonkeyPatch, algorithm: str) -> None:
+    """falcon-512 finds the libraries the data lists for Falcon instead of "No libraries found"."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algorithm])
+    assert result.exit_code == 0
+    assert "No libraries found" not in result.output
+    assert "liboqs (Open Quantum Safe)" in result.output

@@ -105,13 +105,14 @@ pqc-bench explain <algorithm-name>
 - `falcon-512`, `falcon-1024`
 - `slh-dsa-128f`
 
-It also accepts the name of a hybrid mode listed by `pqc-bench hybrid`.
+It also accepts the NIST name and the legacy name that it prints for an algorithm, such as `ML-KEM-768`, `Kyber768` or `FN-DSA-512`, and the name of a hybrid mode listed by `pqc-bench hybrid`.
 
 **Examples:**
 ```bash
 pqc-bench explain ml-kem-768
 pqc-bench explain ml-dsa-44
 pqc-bench explain falcon-512
+pqc-bench explain kyber768
 pqc-bench explain SecP384r1MLKEM1024
 ```
 
@@ -460,7 +461,7 @@ Check available algorithms:
 pqc-bench list
 ```
 
-Use the canonical name (e.g., `ml-kem-768`, not `Kyber768`).
+`explain`, `compare`, `impact` and `libraries --algorithm` accept an algorithm's ID, NIST name or legacy name, so `ml-kem-768`, `ML-KEM-768` and `Kyber768` name the same algorithm.
 
 ### "Command not found"
 

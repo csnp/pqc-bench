@@ -37,6 +37,11 @@ class DataClassification(Enum):
     INTERNAL = "internal"  # Internal use, 5+ years
     PUBLIC = "public"  # No confidentiality requirement
 
+    @property
+    def label(self) -> str:
+        """The classification as shown to users: "Top Secret" for TOP_SECRET."""
+        return self.value.replace("_", " ").title()
+
 
 @dataclass
 class DataLifespanProfile:

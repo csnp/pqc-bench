@@ -395,6 +395,28 @@ class TestQueryParser:
         constraints = parser.parse(query)
         assert ComplianceFramework.HIPAA in constraints.compliance_frameworks
 
+    @pytest.mark.parametrize("query", ["Krankenhaus Patientenakten", "chat app for impatient users"])
+    def test_patient_inside_other_words_selects_no_framework(self, parser: QueryParser, query: str) -> None:
+        """"patient" inside "Patientenakten" or "impatient" does not select HIPAA."""
+        constraints = parser.parse(query)
+        assert constraints.compliance_frameworks == []
+        assert "patient" not in constraints.matched_terms
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "patient portal",
+            "store patients' lab results",
+            "patient-facing app",
+            "outpatient clinic",
+            "inpatient records",
+        ],
+    )
+    def test_patient_as_a_word_selects_hipaa(self, parser: QueryParser, query: str) -> None:
+        """"patient", "patients", "outpatient" and "inpatient" as words select HIPAA."""
+        constraints = parser.parse(query)
+        assert ComplianceFramework.HIPAA in constraints.compliance_frameworks
+
     def test_parse_high_security(self, parser: QueryParser) -> None:
         """High security keywords should set Level 5."""
         constraints = parser.parse("need maximum security level 5")

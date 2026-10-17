@@ -379,6 +379,7 @@ WHOLE_WORD_KEYWORDS: frozenset[str] = frozenset(
         "ios",
         "iot",
         "nist",
+        "patient",
         "pci",
         "phi",
         "rest",

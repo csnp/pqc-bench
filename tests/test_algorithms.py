@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from pqc_bench import cli
 from pqc_bench.data.algorithms import (
     ALGORITHMS,
+    FrameworkApproval,
     get_algorithm,
     get_algorithms_by_type,
     get_algorithms_by_family,
@@ -37,6 +38,49 @@ class TestAlgorithmDatabase:
         """Should return None for unknown algorithm."""
         algo = get_algorithm("unknown-algo")
         assert algo is None
+
+    @pytest.mark.parametrize(
+        ("name", "algo_id"),
+        [
+            ("Kyber768", "ml-kem-768"),
+            ("kyber768", "ml-kem-768"),
+            ("Dilithium3", "ml-dsa-65"),
+            ("dilithium3", "ml-dsa-65"),
+            ("SPHINCS+-SHA2-128f-simple", "slh-dsa-128f"),
+            ("FN-DSA-512", "falcon-512"),
+            ("SLH-DSA-SHA2-128f", "slh-dsa-128f"),
+        ],
+    )
+    def test_get_algorithm_by_legacy_or_nist_name(self, name: str, algo_id: str) -> None:
+        """A legacy or NIST name finds the same algorithm as its ID."""
+        algo = get_algorithm(name)
+        assert algo is not None
+        assert algo.id == algo_id
+
+    @pytest.mark.parametrize("algo_id", list(ALGORITHMS.keys()))
+    def test_every_name_explain_prints_finds_its_algorithm(self, algo_id: str) -> None:
+        """The ID, NIST name and legacy name of an algorithm all find that algorithm."""
+        algo = ALGORITHMS[algo_id]
+        for name in (algo.id, algo.names.nist_name, algo.names.legacy_name):
+            found = get_algorithm(name)
+            assert found is not None, name
+            assert found.id == algo_id, name
+
+    @pytest.mark.parametrize("name", ["", "kyber", "dilithium", "ml-kem", "Kyber769", "X25519MLKEM768"])
+    def test_get_algorithm_partial_or_other_names(self, name: str) -> None:
+        """A family name, a wrong variant or a hybrid mode name finds no algorithm."""
+        assert get_algorithm(name) is None
+
+    @pytest.mark.parametrize(
+        ("name", "nist_name"),
+        [("kyber768", "ML-KEM-768"), ("dilithium3", "ML-DSA-65"), ("FN-DSA-512", "FN-DSA-512")],
+    )
+    def test_explain_accepts_the_names_it_prints(self, name: str, nist_name: str) -> None:
+        """explain shows the algorithm for a legacy or NIST name instead of "Unknown algorithm"."""
+        result = CliRunner().invoke(cli.app, ["explain", name])
+        assert result.exit_code == 0
+        assert "Unknown algorithm" not in result.output
+        assert f"NIST Name:     {nist_name}" in result.output
 
     def test_get_algorithms_by_type_kem(self) -> None:
         """Should return only KEM algorithms."""
@@ -255,3 +299,27 @@ class TestAlgorithmOids:
         result = CliRunner().invoke(cli.app, ["explain", "falcon-512"])
         assert result.exit_code == 0
         assert "OID:           not assigned yet" in result.output
+
+
+class TestFrameworkApprovalLabels:
+    """Tests for the approval status explain prints."""
+
+    @pytest.mark.parametrize(
+        ("status", "label"),
+        [
+            ("approved", "Approved"),
+            ("not_approved", "Not approved"),
+            ("recommended", "Recommended"),
+            ("pending", "Pending"),
+        ],
+    )
+    def test_status_label(self, status: str, label: str) -> None:
+        assert FrameworkApproval(framework="CNSA 2.0", status=status).status_label == label
+
+    def test_explain_prints_labels_not_status_values(self) -> None:
+        """explain ml-dsa-65 says "Not approved" for CNSA 2.0, not the stored value "not_approved"."""
+        result = CliRunner().invoke(cli.app, ["explain", "ml-dsa-65"])
+        assert result.exit_code == 0
+        assert "CNSA 2.0: Not approved" in result.output
+        assert "FIPS 140-3: Approved" in result.output
+        assert "not_approved" not in result.output

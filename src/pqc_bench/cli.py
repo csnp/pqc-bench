@@ -17,11 +17,14 @@ from .core.parser import QueryParser
 from .data.algorithms import ALGORITHMS, get_algorithm
 from .data.compliance import COMPLIANCE_FRAMEWORKS, get_framework
 from .data.libraries import (
+    HYBRID_KEM_USE_CASE_WORDS,
     HYBRID_MODES,
+    HYBRID_SIGNATURE_USE_CASE_WORDS,
     LIBRARIES,
     HybridMode,
     ProductionReadiness,
     get_hybrid_mode,
+    get_hybrid_modes_for_use_case,
     get_libraries_for_algorithm,
     get_libraries_with_fips,
     get_production_ready_libraries,
@@ -39,7 +42,7 @@ from .data.threat_model import (
     get_profiles_by_urgency,
 )
 from .output.json import JsonOutput
-from .output.terminal import TerminalOutput
+from .output.terminal import TerminalOutput, print_rule
 
 app = typer.Typer(
     name="pqc-bench",
@@ -158,7 +161,7 @@ def recommend(
 def explain(
     algorithm: str = typer.Argument(
         ...,
-        help="Algorithm ID (e.g., ml-dsa-65, ml-kem-768)",
+        help="Algorithm ID, NIST name or legacy name (e.g., ml-dsa-65, ML-KEM-768, Kyber768)",
     ),
 ) -> None:
     """
@@ -169,6 +172,8 @@ def explain(
         pqc-bench explain ml-dsa-65
 
         pqc-bench explain ml-kem-768
+
+        pqc-bench explain kyber768
 
         pqc-bench explain falcon-512
 
@@ -223,7 +228,7 @@ def compare(
 
     console.print()
     console.print(f"[bold]Comparison: {algo1.names.nist_name} vs {algo2.names.nist_name}[/bold]")
-    console.print("═" * 60)
+    print_rule(console, "═", 60)
     console.print()
 
     # Create comparison table
@@ -429,7 +434,7 @@ def migrate(
 
     console.print()
     console.print(f"[bold]Migration: {classical['name']} → {pqc_algo.names.nist_name}[/bold]")
-    console.print("═" * 60)
+    print_rule(console, "═", 60)
     console.print()
 
     # Size comparison
@@ -465,7 +470,7 @@ def migrate(
 
     # Impact analysis
     console.print("[bold]Impact Analysis[/bold]")
-    console.print("─" * 40)
+    print_rule(console, "─", 40)
 
     if classical["type"] == "signature":
         sig_diff = (pqc_algo.sizes.signature or 0) - classical["signature"]
@@ -482,7 +487,7 @@ def migrate(
     # Alternative
     if alt_algo:
         console.print("[bold]Alternative[/bold]")
-        console.print("─" * 40)
+        print_rule(console, "─", 40)
         console.print(f"  {alt_algo.names.nist_name}: ", end="")
         if alt_algo.id == "falcon-512":
             console.print("Smaller signatures (666 bytes) but requires FPU, not constant-time")
@@ -495,7 +500,7 @@ def migrate(
 
     # Recommendation
     console.print("[bold]Recommendation[/bold]")
-    console.print("─" * 40)
+    print_rule(console, "─", 40)
     console.print(f"  Use [green]{pqc_algo.names.nist_name}[/green] for most applications.")
     console.print()
     console.print(f"  Run [cyan]pqc-bench explain {pqc_algo.id}[/cyan] for full details.")
@@ -572,7 +577,7 @@ def compliance(
 
     console.print()
     console.print(f"[bold]{fw.name}[/bold]")
-    console.print("═" * 60)
+    print_rule(console, "═", 60)
     if use_case_name is not None:
         sides = _describe_use_case_sides(show_kem, show_signatures)
         console.print(f"Showing requirements for: {use_case_name} ({sides})")
@@ -583,12 +588,12 @@ def compliance(
     console.print()
 
     console.print("[bold]Description[/bold]")
-    console.print("─" * 40)
+    print_rule(console, "─", 40)
     console.print(f"  {fw.description}")
     console.print()
 
     console.print("[bold]Algorithm Requirements[/bold]")
-    console.print("─" * 40)
+    print_rule(console, "─", 40)
 
     if show_kem and fw.requirements.kem_algorithms:
         console.print("  [dim]Key Encapsulation (KEM):[/dim]")
@@ -617,7 +622,7 @@ def compliance(
 
     if fw.timeline:
         console.print("[bold]Timeline[/bold]")
-        console.print("─" * 40)
+        print_rule(console, "─", 40)
         if fw.timeline.prefer_by:
             console.print(f"  • Prefer PQC by: {fw.timeline.prefer_by}")
         if fw.timeline.require_by:
@@ -636,14 +641,14 @@ def compliance(
 
     if fw.applies_to:
         console.print("[bold]Applies To[/bold]")
-        console.print("─" * 40)
+        print_rule(console, "─", 40)
         for applies in fw.applies_to:
             console.print(f"  • {applies}")
         console.print()
 
     if fw.citations:
         console.print("[bold]References[/bold]")
-        console.print("─" * 40)
+        print_rule(console, "─", 40)
         for citation in fw.citations:
             console.print(f"  [cyan]{citation}[/cyan]")
         console.print()
@@ -669,9 +674,18 @@ def list_algorithms(
 
         pqc-bench list --type kem
     """
+    wanted_type = None
+    if algorithm_type is not None:
+        # "kems" and "signatures" are accepted as well
+        wanted_type = algorithm_type.strip().lower().removesuffix("s")
+        if wanted_type not in ("kem", "signature"):
+            console.print(f"[red]Unknown algorithm type: {escape(algorithm_type)}[/red]")
+            console.print("Valid types: kem, signature")
+            raise typer.Exit(1)
+
     console.print()
     console.print("[bold]Available Algorithms[/bold]")
-    console.print("═" * 60)
+    print_rule(console, "═", 60)
     console.print()
 
     from rich import box
@@ -685,9 +699,8 @@ def list_algorithms(
     table.add_column("NIST")
 
     for algo_id, algo in sorted(ALGORITHMS.items()):
-        if algorithm_type:
-            if algorithm_type.lower() not in [algo.algorithm_type, algo.algorithm_type + "s"]:
-                continue
+        if wanted_type is not None and algo.algorithm_type != wanted_type:
+            continue
 
         nist = "[green]Yes[/green]" if algo.compliance.nist_standardized else "[yellow]Pending[/yellow]"
         table.add_row(
@@ -744,7 +757,7 @@ def libraries(
 
     console.print()
     console.print("[bold]Cryptographic Libraries for PQC[/bold]")
-    console.print("═" * 70)
+    print_rule(console, "═", 70)
     console.print()
 
     # Filter libraries
@@ -796,7 +809,7 @@ def libraries(
     liboqs = LIBRARIES.get("liboqs")
     if liboqs and not production_only and not fips_only:
         console.print("[bold red]CRITICAL WARNING[/bold red]")
-        console.print("─" * 40)
+        print_rule(console, "─", 40)
         console.print("  liboqs is explicitly NOT production-ready.")
         console.print("  Per liboqs README: 'NOT safe for production'")
         console.print()
@@ -807,7 +820,7 @@ def libraries(
 def _print_hybrid_mode(mode: HybridMode) -> None:
     """Print one hybrid mode: components, size, support and libraries."""
     console.print(f"[bold cyan]{mode.name}[/bold cyan]")
-    console.print("─" * 50)
+    print_rule(console, "─", 50)
     console.print(f"  {mode.description}")
     console.print()
     console.print(f"  [dim]Classical:[/dim] {mode.classical_algorithm}")
@@ -821,13 +834,13 @@ def _print_hybrid_mode(mode: HybridMode) -> None:
         supports.append("[green]Chrome[/green]")
     if mode.cloudflare_support:
         supports.append("[green]Cloudflare[/green]")
-    if mode.tls_support:
-        supports.append("[green]TLS[/green]")
 
     if supports:
         console.print(f"  [dim]Browser/CDN support:[/dim] {', '.join(supports)}")
     else:
         console.print("  [dim]Browser/CDN support:[/dim] [yellow]Not yet[/yellow]")
+    tls = "[green]Yes[/green]" if mode.tls_support else "[yellow]Not yet[/yellow]"
+    console.print(f"  [dim]TLS support:[/dim] {tls}")
 
     if mode.ietf_draft:
         console.print(f"  [dim]IETF reference:[/dim] {mode.ietf_draft}")
@@ -847,7 +860,8 @@ def hybrid(
         None,
         "--use-case",
         "-u",
-        help="Filter by use case (tls, certificate)",
+        help=f"Filter by use case: {', '.join(HYBRID_KEM_USE_CASE_WORDS)} for key exchange; "
+        f"{', '.join(HYBRID_SIGNATURE_USE_CASE_WORDS)} for signatures",
     ),
 ) -> None:
     """
@@ -861,33 +875,44 @@ def hybrid(
         pqc-bench hybrid
 
         pqc-bench hybrid --use-case tls
+
+        pqc-bench hybrid --use-case signature
     """
+    # Filter modes
+    if use_case is None:
+        modes = list(HYBRID_MODES.values())
+    else:
+        modes = get_hybrid_modes_for_use_case(use_case)
+        if not modes:
+            console.print(f"[red]Unknown use case: {escape(use_case)}[/red]")
+            console.print()
+            console.print("Accepted use cases:")
+            console.print(f"  • {', '.join(HYBRID_KEM_USE_CASE_WORDS)}: hybrid key exchange")
+            console.print(f"  • {', '.join(HYBRID_SIGNATURE_USE_CASE_WORDS)}: hybrid signatures")
+            raise typer.Exit(1)
 
     console.print()
     console.print("[bold]Hybrid Cryptography Modes[/bold]")
-    console.print("═" * 70)
+    print_rule(console, "═", 70)
     console.print()
 
     console.print("[dim]Hybrid modes combine classical + PQC for defense-in-depth:[/dim]")
     console.print("[dim]If either algorithm is secure, the combination is secure.[/dim]")
     console.print()
 
-    # Filter modes
-    if use_case:
-        from .data.libraries import get_hybrid_modes_for_use_case
-        modes = get_hybrid_modes_for_use_case(use_case)
-    else:
-        modes = list(HYBRID_MODES.values())
-
     for mode in modes:
         _print_hybrid_mode(mode)
 
     console.print("[bold]Why Hybrid?[/bold]")
-    console.print("─" * 40)
+    print_rule(console, "─", 40)
     console.print("  1. PQC algorithms are newer; hybrid provides insurance")
     console.print("  2. X25519MLKEM768 is deployed in Chrome (since Chrome 131) and Cloudflare")
     console.print("  3. NIST and NSA recommend hybrid during transition period")
     console.print()
+
+
+# Urgency levels accepted by `threat --urgency`.
+URGENCY_LEVELS = ", ".join(level.value for level in ThreatUrgency)
 
 
 @app.command()
@@ -908,7 +933,7 @@ def threat(
         None,
         "--urgency",
         "-u",
-        help="Filter by urgency level (critical, high, medium, low)",
+        help=f"Filter by urgency level ({URGENCY_LEVELS})",
     ),
 ) -> None:
     """
@@ -931,7 +956,7 @@ def threat(
 
     console.print()
     console.print("[bold]SNDL Threat Assessment[/bold]")
-    console.print("═" * 70)
+    print_rule(console, "═", 70)
     console.print()
 
     if list_types or (not data_type and not urgency):
@@ -981,17 +1006,11 @@ def threat(
 
     if urgency:
         # Filter by urgency
-        urgency_map = {
-            "critical": ThreatUrgency.CRITICAL,
-            "high": ThreatUrgency.HIGH,
-            "medium": ThreatUrgency.MEDIUM,
-            "low": ThreatUrgency.LOW,
-            "monitoring": ThreatUrgency.MONITORING,
-        }
+        urgency_map = {level.value: level for level in ThreatUrgency}
         urg = urgency_map.get(urgency.lower())
-        if not urg:
+        if urg is None:
             console.print(f"[red]Unknown urgency level: {escape(urgency)}[/red]")
-            console.print("Valid levels: critical, high, medium, low, monitoring")
+            console.print(f"Valid levels: {URGENCY_LEVELS}")
             raise typer.Exit(1)
 
         profiles = get_profiles_by_urgency(urg)
@@ -1017,11 +1036,11 @@ def threat(
     profile = assessment.data_profile
 
     console.print(f"[bold]{profile.name}[/bold]")
-    console.print("─" * 50)
+    print_rule(console, "─", 50)
     console.print()
     console.print(f"[dim]Description:[/dim] {profile.description}")
     console.print(f"[dim]Typical lifespan:[/dim] {profile.typical_lifespan_years} years")
-    console.print(f"[dim]Classification:[/dim] {profile.classification.value}")
+    console.print(f"[dim]Classification:[/dim] {profile.classification.label}")
     console.print()
 
     # Risk assessment
@@ -1057,6 +1076,7 @@ def impact(
         3,
         "--chain-length",
         "-c",
+        min=1,
         help="Certificate chain length for signature analysis",
     ),
 ) -> None:
@@ -1082,14 +1102,14 @@ def impact(
 
     console.print()
     console.print(f"[bold]Protocol Impact: {algo.names.nist_name}[/bold]")
-    console.print("═" * 70)
+    print_rule(console, "═", 70)
     console.print()
 
     if algo.is_kem:
         impact_data = calculate_tls_kem_impact(algorithm)
         if impact_data:
             console.print("[bold]TLS 1.3 Handshake Impact (Key Exchange)[/bold]")
-            console.print("─" * 50)
+            print_rule(console, "─", 50)
             console.print(f"  [dim]Baseline:[/dim] {impact_data.comparison_baseline}")
             console.print()
 
@@ -1131,7 +1151,7 @@ def impact(
 
         if impact_data:
             console.print(f"[bold]TLS 1.3 Handshake Impact (Certificate Chain of {chain_length})[/bold]")
-            console.print("─" * 50)
+            print_rule(console, "─", 50)
             console.print(f"  [dim]Baseline:[/dim] {impact_data.comparison_baseline}")
             console.print()
 
@@ -1147,7 +1167,7 @@ def impact(
 
         if chain_data:
             console.print("[bold]Certificate Chain Analysis[/bold]")
-            console.print("─" * 50)
+            print_rule(console, "─", 50)
 
             table = Table(box=box.SIMPLE)
             table.add_column("Metric", style="dim")
@@ -1187,7 +1207,7 @@ def impact(
     risks = get_ossification_risks(algorithm)
     if risks:
         console.print("[bold]Protocol Ossification Risks[/bold]")
-        console.print("─" * 50)
+        print_rule(console, "─", 50)
         for risk in risks:
             severity_colors = {"low": "green", "medium": "yellow", "high": "red"}
             sev_color = severity_colors.get(risk.severity, "white")
@@ -1247,7 +1267,7 @@ def sector(
 
     if deadlines:
         console.print("[bold]PQC Compliance Deadlines by Sector[/bold]")
-        console.print("═" * 70)
+        print_rule(console, "═", 70)
         console.print()
 
         all_deadlines = get_compliance_deadlines()
@@ -1269,7 +1289,7 @@ def sector(
 
     if list_sectors or not sector_name:
         console.print("[bold]Critical Infrastructure Sectors[/bold]")
-        console.print("═" * 70)
+        print_rule(console, "═", 70)
         console.print()
         console.print("[dim]Sector-specific PQC guidance based on real constraints and regulations.[/dim]")
         console.print()
@@ -1358,7 +1378,7 @@ def sector(
 
     # Header
     console.print(f"[bold]{profile.name}[/bold]")
-    console.print("═" * 70)
+    print_rule(console, "═", 70)
     console.print()
     console.print(f"[dim]{profile.description}[/dim]")
     console.print()
@@ -1379,7 +1399,7 @@ def sector(
     # Regulations
     if profile.regulations:
         console.print("[bold]Regulatory Framework[/bold]")
-        console.print("─" * 50)
+        print_rule(console, "─", 50)
         for reg in profile.regulations:
             req_style = {
                 "mandatory": "[red]MANDATORY[/red]",
@@ -1397,7 +1417,7 @@ def sector(
     # Technical constraints
     if profile.constraints:
         console.print("[bold]Technical Constraints[/bold]")
-        console.print("─" * 50)
+        print_rule(console, "─", 50)
         for constraint in profile.constraints:
             severity_colors = {"blocking": "red", "major": "yellow", "minor": "dim"}
             sev_color = severity_colors.get(constraint.severity, "white")
@@ -1408,7 +1428,7 @@ def sector(
 
     # Recommendations
     console.print("[bold]Algorithm Recommendations[/bold]")
-    console.print("─" * 50)
+    print_rule(console, "─", 50)
     console.print(f"  KEM: [green]{profile.recommended_kem}[/green]")
     console.print(f"  Signature: [green]{profile.recommended_sig}[/green]")
     if profile.recommended_hybrid_kem:
@@ -1420,7 +1440,7 @@ def sector(
     # Migration priority
     if profile.migration_priority:
         console.print("[bold]Migration Priority[/bold]")
-        console.print("─" * 50)
+        print_rule(console, "─", 50)
         for i, priority in enumerate(profile.migration_priority, 1):
             console.print(f"  {i}. {priority}")
         console.print()
@@ -1428,7 +1448,7 @@ def sector(
     # Special considerations
     if profile.special_considerations:
         console.print("[bold]Special Considerations[/bold]")
-        console.print("─" * 50)
+        print_rule(console, "─", 50)
         for consideration in profile.special_considerations:
             if consideration.startswith("CRYPTO-AGILITY") or consideration.startswith("Falcon"):
                 console.print(f"  [yellow]⚠ {consideration}[/yellow]")
@@ -1439,7 +1459,7 @@ def sector(
     # References
     if profile.key_references:
         console.print("[bold]Key References[/bold]")
-        console.print("─" * 50)
+        print_rule(console, "─", 50)
         for ref in profile.key_references:
             console.print(f"  [cyan]{ref}[/cyan]")
         console.print()

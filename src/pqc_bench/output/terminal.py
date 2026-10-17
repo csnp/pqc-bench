@@ -17,6 +17,11 @@ from ..data.algorithms import AlgorithmProfile
 DEFAULTS_APPLIED = "Nothing recognised; defaults applied: NIST standardized, Level 3 or higher"
 
 
+def print_rule(console: Console, character: str, width: int) -> None:
+    """Print a rule of ``width`` characters, shortened to the console width if that is less."""
+    console.print(character * min(width, console.width))
+
+
 class TerminalOutput:
     """
     Formats recommendation results for terminal display.
@@ -112,7 +117,7 @@ class TerminalOutput:
 
         # Query analysis section
         self.console.print("[bold]Query Analysis[/bold]")
-        self.console.print("─" * 40)
+        print_rule(self.console, "─", 40)
         if NO_REQUIREMENT_NOTE in result.notes:
             self.console.print(f"  {DEFAULTS_APPLIED}")
         else:
@@ -151,7 +156,7 @@ class TerminalOutput:
         # Citations
         self.console.print()
         self.console.print("[bold]Citations[/bold]")
-        self.console.print("─" * 40)
+        print_rule(self.console, "─", 40)
         for citation in primary.algorithm.security.citations:
             self.console.print(f"  • {citation.title}")
             self.console.print(f"    [dim]{citation.url}[/dim]")
@@ -293,7 +298,7 @@ class TerminalOutput:
         # Identity
         self.console.print()
         self.console.print("[bold]Identity[/bold]")
-        self.console.print("─" * 40)
+        print_rule(self.console, "─", 40)
         self.console.print(f"  NIST Name:     {algo.names.nist_name}")
         self.console.print(f"  Legacy Name:   {algo.names.legacy_name}")
         self.console.print(f"  FIPS:          {algo.names.nist_fips}")
@@ -303,7 +308,7 @@ class TerminalOutput:
         # Security
         self.console.print()
         self.console.print("[bold]Security[/bold]")
-        self.console.print("─" * 40)
+        print_rule(self.console, "─", 40)
         self.console.print(f"  NIST Level:    {algo.security.nist_level}")
         self.console.print(f"  Classical:     {algo.security.classical_bits}-bit")
         self.console.print(f"  Quantum:       {algo.security.quantum_bits}-bit")
@@ -316,7 +321,7 @@ class TerminalOutput:
         if algo.security.caveats:
             self.console.print()
             self.console.print("[bold]Caveats[/bold]")
-            self.console.print("─" * 40)
+            print_rule(self.console, "─", 40)
             for caveat in algo.security.caveats:
                 style = "yellow" if caveat.severity == "warning" else "red" if caveat.severity == "critical" else "dim"
                 self.console.print(f"  [{style}]• {caveat.description}[/{style}]")
@@ -326,7 +331,7 @@ class TerminalOutput:
         # Sizes
         self.console.print()
         self.console.print("[bold]Sizes[/bold]")
-        self.console.print("─" * 40)
+        print_rule(self.console, "─", 40)
         self.console.print(f"  Public Key:    {algo.sizes.public_key:,} bytes")
         self.console.print(f"  Private Key:   {algo.sizes.private_key:,} bytes")
         if algo.sizes.signature:
@@ -339,7 +344,7 @@ class TerminalOutput:
         # Performance
         self.console.print()
         self.console.print("[bold]Performance[/bold]")
-        self.console.print("─" * 40)
+        print_rule(self.console, "─", 40)
 
         table = Table(box=box.SIMPLE, show_header=True)
         table.add_column("Platform")
@@ -373,7 +378,7 @@ class TerminalOutput:
         # Compliance
         self.console.print()
         self.console.print("[bold]Compliance[/bold]")
-        self.console.print("─" * 40)
+        print_rule(self.console, "─", 40)
         self.console.print(
             f"  NIST Standard: {'[green]Yes[/green]' if algo.compliance.nist_standardized else '[yellow]No[/yellow]'}"
         )
@@ -386,13 +391,13 @@ class TerminalOutput:
             for approval in algo.compliance.approved_by:
                 status_style = "green" if approval.status == "approved" else "yellow"
                 self.console.print(
-                    f"    • {approval.framework}: [{status_style}]{approval.status}[/{status_style}]"
+                    f"    • {approval.framework}: [{status_style}]{approval.status_label}[/{status_style}]"
                 )
 
         # Implementations
         self.console.print()
         self.console.print("[bold]Implementations[/bold]")
-        self.console.print("─" * 40)
+        print_rule(self.console, "─", 40)
         for impl in algo.requirements.implementations:
             fips_badge = " [green](FIPS)[/green]" if impl.fips_validated else ""
             self.console.print(f"  • {impl.library} {impl.version}{fips_badge}")
@@ -402,7 +407,7 @@ class TerminalOutput:
         if algo.notes:
             self.console.print()
             self.console.print("[bold]Notes[/bold]")
-            self.console.print("─" * 40)
+            print_rule(self.console, "─", 40)
             for note in algo.notes:
                 self.console.print(f"  • {note}")
 
@@ -410,7 +415,7 @@ class TerminalOutput:
         if algo.security.citations:
             self.console.print()
             self.console.print("[bold]References[/bold]")
-            self.console.print("─" * 40)
+            print_rule(self.console, "─", 40)
             for citation in algo.security.citations:
                 self.console.print(f"  • {citation.title}")
                 self.console.print(f"    [cyan]{citation.url}[/cyan]")
