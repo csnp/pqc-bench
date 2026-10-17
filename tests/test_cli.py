@@ -14,13 +14,14 @@ from typer.testing import CliRunner
 from pqc_bench import cli
 from pqc_bench.core.engine import RecommendationEngine
 from pqc_bench.core.parser import QueryParser
+from pqc_bench.data import threat_model
 from pqc_bench.data.algorithms import ALGORITHMS
 from pqc_bench.data.libraries import (
     HYBRID_KEM_USE_CASE_WORDS,
     HYBRID_MODES,
     HYBRID_SIGNATURE_USE_CASE_WORDS,
 )
-from pqc_bench.data.threat_model import ThreatUrgency
+from pqc_bench.data.threat_model import ThreatUrgency, get_profiles_by_urgency
 from pqc_bench.output.terminal import TerminalOutput, print_rule
 
 
@@ -599,6 +600,43 @@ def test_threat_urgency_help_and_error_list_the_same_levels(monkeypatch: pytest.
 def test_threat_accepts_every_listed_urgency_level(level: str) -> None:
     result = CliRunner().invoke(cli.app, ["threat", "--urgency", level])
     assert result.exit_code == 0
+
+
+@pytest.mark.parametrize("level", list(ThreatUrgency), ids=lambda level: level.value)
+def test_threat_urgency_lists_the_profiles_of_the_level_or_says_it_has_none(
+    monkeypatch: pytest.MonkeyPatch, level: ThreatUrgency
+) -> None:
+    """Each level lists its profiles, or says that no profile has it and names the levels that do."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["threat", "--urgency", level.value])
+    assert result.exit_code == 0
+    lines = [line.strip() for line in result.output.splitlines()]
+    profiles = get_profiles_by_urgency(level)
+    if profiles:
+        for profile in profiles:
+            assert f"• {profile.name}" in lines
+        assert not any(line.startswith("No data profile has") for line in lines)
+    else:
+        assert f"No data profile has {level.value.upper()} urgency." in lines
+        levels = ", ".join(other.value for other in ThreatUrgency if get_profiles_by_urgency(other))
+        assert f"Levels that have profiles: {levels}" in lines
+
+
+def test_threat_urgency_with_no_profile_names_the_levels_that_have_profiles(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With only critical and low profiles, --urgency high says it has none and names critical and low."""
+    _wide_console(monkeypatch)
+    kept = {ThreatUrgency.CRITICAL, ThreatUrgency.LOW}
+    monkeypatch.setattr(
+        threat_model,
+        "DATA_PROFILES",
+        {key: profile for key, profile in threat_model.DATA_PROFILES.items() if profile.urgency in kept},
+    )
+    result = CliRunner().invoke(cli.app, ["threat", "--urgency", "high"])
+    assert result.exit_code == 0
+    lines = [line.strip() for line in result.output.splitlines()]
+    assert "No data profile has HIGH urgency." in lines
+    assert "Levels that have profiles: critical, low" in lines
+    assert "Action:" not in result.output
 
 
 @pytest.mark.parametrize("chain_length", ["0", "-3"])
