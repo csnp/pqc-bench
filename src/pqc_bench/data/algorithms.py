@@ -196,7 +196,9 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 203",
             nist_name="ML-KEM-512",
             legacy_name="Kyber512",
-            oid="1.3.6.1.4.1.22554.5.6.1",
+            # NIST CSOR algorithm registration:
+            # https://csrc.nist.gov/projects/computer-security-objects-register/algorithm-registration
+            oid="2.16.840.1.101.3.4.4.1",  # id-alg-ml-kem-512, NIST CSOR algorithm registration
             tls_codepoint=0x0200,
         ),
         security=SecurityProfile(
@@ -288,7 +290,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 203",
             nist_name="ML-KEM-768",
             legacy_name="Kyber768",
-            oid="1.3.6.1.4.1.22554.5.6.2",
+            oid="2.16.840.1.101.3.4.4.2",  # id-alg-ml-kem-768, NIST CSOR algorithm registration
             tls_codepoint=0x0201,
         ),
         security=SecurityProfile(
@@ -390,7 +392,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 203",
             nist_name="ML-KEM-1024",
             legacy_name="Kyber1024",
-            oid="1.3.6.1.4.1.22554.5.6.3",
+            oid="2.16.840.1.101.3.4.4.3",  # id-alg-ml-kem-1024, NIST CSOR algorithm registration
             tls_codepoint=0x0202,
         ),
         security=SecurityProfile(
@@ -492,7 +494,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 204",
             nist_name="ML-DSA-44",
             legacy_name="Dilithium2",
-            oid="1.3.6.1.4.1.2.267.12.4.4",
+            oid="2.16.840.1.101.3.4.3.17",  # id-ml-dsa-44, NIST CSOR algorithm registration
         ),
         security=SecurityProfile(
             nist_level=2,
@@ -584,7 +586,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 204",
             nist_name="ML-DSA-65",
             legacy_name="Dilithium3",
-            oid="1.3.6.1.4.1.2.267.12.6.5",
+            oid="2.16.840.1.101.3.4.3.18",  # id-ml-dsa-65, NIST CSOR algorithm registration
         ),
         security=SecurityProfile(
             nist_level=3,
@@ -676,7 +678,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 204",
             nist_name="ML-DSA-87",
             legacy_name="Dilithium5",
-            oid="1.3.6.1.4.1.2.267.12.8.7",
+            oid="2.16.840.1.101.3.4.3.19",  # id-ml-dsa-87, NIST CSOR algorithm registration
         ),
         security=SecurityProfile(
             nist_level=5,
@@ -777,7 +779,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 206 (pending)",
             nist_name="FN-DSA-512",
             legacy_name="Falcon-512",
-            oid="1.3.9999.3.6",
+            oid=None,  # No NIST CSOR algorithm registration until FIPS 206 is final
         ),
         security=SecurityProfile(
             nist_level=1,
@@ -872,7 +874,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 206 (pending)",
             nist_name="FN-DSA-1024",
             legacy_name="Falcon-1024",
-            oid="1.3.9999.3.9",
+            oid=None,  # No NIST CSOR algorithm registration until FIPS 206 is final
         ),
         security=SecurityProfile(
             nist_level=5,
@@ -961,7 +963,7 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             nist_fips="FIPS 205",
             nist_name="SLH-DSA-SHA2-128f",
             legacy_name="SPHINCS+-SHA2-128f-simple",
-            oid="1.3.9999.6.4.13",
+            oid="2.16.840.1.101.3.4.3.21",  # id-slh-dsa-sha2-128f, NIST CSOR algorithm registration
         ),
         security=SecurityProfile(
             nist_level=1,

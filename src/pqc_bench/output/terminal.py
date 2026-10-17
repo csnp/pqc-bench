@@ -267,8 +267,7 @@ class TerminalOutput:
         self.console.print(f"  NIST Name:     {algo.names.nist_name}")
         self.console.print(f"  Legacy Name:   {algo.names.legacy_name}")
         self.console.print(f"  FIPS:          {algo.names.nist_fips}")
-        if algo.names.oid:
-            self.console.print(f"  OID:           {algo.names.oid}")
+        self.console.print(f"  OID:           {algo.names.oid or 'not assigned yet'}")
         self.console.print(f"  Type:          {'Signature' if algo.is_signature else 'KEM'}")
 
         # Security
