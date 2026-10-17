@@ -220,7 +220,7 @@ LIBRARIES: dict[str, LibraryProfile] = {
             ml_dsa=["44", "65", "87"],
             slh_dsa=[],
             falcon=[],
-            hybrid_kem=["X25519MLKEM768"],
+            hybrid_kem=["X25519MLKEM768", "SecP384r1MLKEM1024"],
             hybrid_sig=[],
         ),
         constant_time_verified=True,
@@ -357,7 +357,7 @@ LIBRARIES: dict[str, LibraryProfile] = {
             ml_dsa=["44", "65", "87"],
             slh_dsa=[],
             falcon=[],
-            hybrid_kem=["X25519MLKEM768"],
+            hybrid_kem=["X25519MLKEM768", "SecP384r1MLKEM1024"],
             hybrid_sig=[],
         ),
         constant_time_verified=True,
@@ -465,6 +465,25 @@ HYBRID_MODES: dict[str, HybridMode] = {
         ],
         libraries=["boringssl", "aws-lc", "openssl-3.5", "wolfssl"],
     ),
+    "secp384r1-mlkem1024": HybridMode(
+        id="secp384r1-mlkem1024",
+        name="SecP384r1MLKEM1024",
+        description="ECDH P-384 + ML-KEM-1024 hybrid key exchange (TLS group 4589, 0x11ED)",
+        classical_algorithm="ECDH P-384",
+        pqc_algorithm="ML-KEM-1024",
+        kem_or_sig="kem",
+        combined_size=97 + 1568,  # Client key share: uncompressed P-384 point + ML-KEM-1024
+        tls_support=True,
+        chrome_support=False,
+        cloudflare_support=False,
+        ietf_draft="RFC 10024",
+        recommended_until="Until pure ML-KEM-1024 is widely trusted",
+        caveats=[
+            "Carries ML-KEM-1024, the KEM that CNSA 2.0 requires",
+            "Larger key share than X25519MLKEM768",
+        ],
+        libraries=["openssl-3.5", "wolfssl"],
+    ),
     "ecdsa-p256-mldsa44": HybridMode(
         id="ecdsa-p256-mldsa44",
         name="ECDSA P-256 + ML-DSA-44",
@@ -556,9 +575,21 @@ def get_libraries_for_algorithm(algorithm_id: str) -> list[LibraryProfile]:
     return result
 
 
+def _hybrid_key(text: str) -> str:
+    """``text`` in lower case with everything but letters and digits removed."""
+    return "".join(char for char in text.lower() if char.isalnum())
+
+
 def get_hybrid_mode(hybrid_id: str) -> HybridMode | None:
-    """Get hybrid mode by ID."""
-    return HYBRID_MODES.get(hybrid_id.lower().replace(" ", "-"))
+    """Get hybrid mode by ID or name ("secp384r1-mlkem1024" or "SecP384r1MLKEM1024")."""
+    mode = HYBRID_MODES.get(hybrid_id.lower().replace(" ", "-"))
+    if mode is not None:
+        return mode
+    key = _hybrid_key(hybrid_id)
+    for mode in HYBRID_MODES.values():
+        if key in (_hybrid_key(mode.id), _hybrid_key(mode.name)):
+            return mode
+    return None
 
 
 def get_recommended_hybrid_for_kem() -> HybridMode:
