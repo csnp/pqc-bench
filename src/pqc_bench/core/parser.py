@@ -165,6 +165,8 @@ class QueryParser:
             "phi",
             "ephi",
             "patient",
+            "inpatient",
+            "outpatient",
         ],
         ComplianceFramework.SOC2: ["soc2", "soc 2", "audit"],
         ComplianceFramework.FEDRAMP: ["fedramp", "federal cloud"],

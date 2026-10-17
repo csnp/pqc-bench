@@ -279,3 +279,17 @@ class TestDataClassification:
         profile = DATA_PROFILES.get("public_signatures")
         assert profile is not None
         assert profile.classification == DataClassification.PUBLIC
+
+    @pytest.mark.parametrize(
+        ("classification", "label"),
+        [
+            (DataClassification.TOP_SECRET, "Top Secret"),
+            (DataClassification.SECRET, "Secret"),
+            (DataClassification.CONFIDENTIAL, "Confidential"),
+            (DataClassification.INTERNAL, "Internal"),
+            (DataClassification.PUBLIC, "Public"),
+        ],
+    )
+    def test_label(self, classification: DataClassification, label: str) -> None:
+        """Users see "Top Secret", not the stored value "top_secret"."""
+        assert classification.label == label

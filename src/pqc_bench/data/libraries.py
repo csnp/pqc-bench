@@ -15,8 +15,10 @@ Production-readiness factors:
 - Memory safety (language, practices)
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from enum import Enum
+
+from .algorithms import get_algorithm
 
 
 class ProductionReadiness(Enum):
@@ -553,22 +555,27 @@ def get_libraries_with_fips() -> list[LibraryProfile]:
     ]
 
 
-def get_libraries_for_algorithm(algorithm_id: str) -> list[LibraryProfile]:
-    """Get libraries that support a specific algorithm."""
-    # Parse algorithm ID (e.g., "ml-kem-768" -> family="ml_kem", variant="768")
-    parts = algorithm_id.lower().replace("-", "_").split("_")
-    if len(parts) < 3:
-        return []
+_ALGORITHM_SUPPORT_FIELDS = frozenset(support_field.name for support_field in fields(AlgorithmSupport))
 
-    family = "_".join(parts[:-1])  # e.g., "ml_kem"
-    variant = parts[-1]  # e.g., "768"
+
+def get_libraries_for_algorithm(algorithm_id: str) -> list[LibraryProfile]:
+    """Get libraries that support an algorithm, given by ID, NIST name or legacy name."""
+    algo = get_algorithm(algorithm_id)
+    if algo is not None:
+        algorithm_id = algo.id
+
+    # Split the ID into an AlgorithmSupport field and a variant:
+    # "ml-kem-768" -> "ml_kem", "768" and "falcon-512" -> "falcon", "512"
+    family, _, variant = algorithm_id.lower().replace("-", "_").rpartition("_")
+    if family not in _ALGORITHM_SUPPORT_FIELDS:
+        return []
 
     result = []
     for lib in LIBRARIES.values():
         if lib.algorithms is None:
             continue
 
-        supported = getattr(lib.algorithms, family, [])
+        supported = getattr(lib.algorithms, family)
         if variant in supported:
             result.append(lib)
 
@@ -597,8 +604,14 @@ def get_recommended_hybrid_for_kem() -> HybridMode:
     return HYBRID_MODES["x25519-mlkem768"]
 
 
+# Words that select the hybrid modes for a use case. A use case matches a
+# word that occurs anywhere in it, so "code signing" matches "signing".
+HYBRID_KEM_USE_CASE_WORDS = ["tls", "https", "web", "browser"]
+HYBRID_SIGNATURE_USE_CASE_WORDS = ["certificate", "signing", "signature"]
+
+
 def get_hybrid_modes_for_use_case(use_case: str) -> list[HybridMode]:
-    """Get hybrid modes suitable for a use case."""
+    """Get hybrid modes suitable for a use case; empty when it holds none of the use-case words."""
     use_case_lower = use_case.lower()
     kem_modes = [mode for mode in HYBRID_MODES.values() if mode.kem_or_sig == "kem"]
 
@@ -611,7 +624,7 @@ def get_hybrid_modes_for_use_case(use_case: str) -> list[HybridMode]:
         return [mode for mode in kem_modes if mode.tls_support]
 
     if any(
-        kw in use_case_lower for kw in ["certificate", "signing", "code signing"]
+        kw in use_case_lower for kw in HYBRID_SIGNATURE_USE_CASE_WORDS
     ):
         # Signatures: composite signature hybrids
         return [
@@ -619,5 +632,4 @@ def get_hybrid_modes_for_use_case(use_case: str) -> list[HybridMode]:
             HYBRID_MODES["ecdsa-p384-mldsa65"],
         ]
 
-    # Default: return KEM hybrid
-    return [HYBRID_MODES["x25519-mlkem768"]]
+    return []

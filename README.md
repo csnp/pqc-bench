@@ -122,16 +122,24 @@ Not all PQC libraries are ready for production:
 ```bash
 $ pqc-bench libraries
 
-╭─ Production Ready ───────────────────────────────────────────────────────────╮
-│ ✓ AWS-LC         - FIPS 140-3 validated, ML-KEM, ML-DSA                     │
-│ ✓ BoringSSL      - Google's fork, hybrid TLS support                        │
-│ ✓ OpenSSL 3.5+   - ML-KEM, ML-DSA (provider model)                          │
-╰──────────────────────────────────────────────────────────────────────────────╯
+Cryptographic Libraries for PQC
+══════════════════════════════════════════════════════════════════════
 
-╭─ NOT Production Ready ───────────────────────────────────────────────────────╮
-│ ✗ liboqs         - Research library, NOT for production                     │
-│ ✗ pqcrypto       - Academic implementations                                 │
-╰──────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────┬──────────────┬───────┬───────────────────────────╮
+│ Library                   │ Production   │ FIPS  │ Notable Users             │
+├───────────────────────────┼──────────────┼───────┼───────────────────────────┤
+│ AWS-LC (AWS Libcrypto)    │ Production   │ #4793 │ AWS SDK, AWS S3, AWS KMS  │
+│ BoringSSL                 │ Production   │ #4407 │ Google Chrome,            │
+│                           │              │       │ Cloudflare, Android       │
+│ OpenSSL 3.5+              │ Production   │ No    │ nginx, Apache HTTPD, curl │
+│ liboqs (Open Quantum      │ Experimental │ No    │ Researchers, PQC testing  │
+│ Safe)                     │              │       │ frameworks                │
+│ pqcrypto (Rust)           │ Experimental │ No    │ -                         │
+│ wolfSSL                   │ Production   │ #3389 │ Automotive, Industrial    │
+│                           │              │       │ IoT, Medical devices      │
+│ Mbed TLS (with PQC)       │ Transitional │ No    │ ARM Cortex-M devices      │
+╰───────────────────────────┴──────────────┴───────┴───────────────────────────╯
+...
 ```
 
 ### Protocol Impact Analysis
@@ -238,7 +246,3 @@ Copyright 2025 Cybersecurity Non-Profit (CSNP)
 Built with purpose by **[CSNP](https://csnp.org)** — Advancing cybersecurity for everyone
 
 [QRAMM](https://qramm.org) • [CSNP](https://csnp.org) • [Issues](https://github.com/csnp/pqc-bench/issues)
-
----
-
-**Data last updated:** December 2024 | **Next update:** When NIST finalizes FIPS 206 (Falcon)

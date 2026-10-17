@@ -5,8 +5,10 @@ import shlex
 from pathlib import Path
 
 import pytest
+from rich.console import Console
 from typer.testing import CliRunner
 
+from pqc_bench import cli
 from pqc_bench.cli import app
 from pqc_bench.core.constraints import ComplianceFramework, SecurityLevel
 from pqc_bench.core.engine import RecommendationEngine
@@ -86,6 +88,25 @@ def test_readme_example_results_match_the_cli() -> None:
         "embedded sensor with 256KB RAM",
         "REST API with JWT auth, running on AWS Lambda",
     } <= set(checked)
+
+
+def _readme_sample(command: str) -> list[str]:
+    """The lines of the README code block that follow the line ``$ <command>``."""
+    lines = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+    start = lines.index(f"$ {command}") + 1
+    return lines[start : lines.index("```", start)]
+
+
+def test_readme_libraries_sample_is_output_of_the_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each line of the README `libraries` sample is printed by the CLI at 80 columns, in the same order."""
+    monkeypatch.setattr(cli, "console", Console(width=80))
+    result = CliRunner().invoke(app, ["libraries"])
+    assert result.exit_code == 0
+    printed = iter(line.rstrip() for line in result.output.splitlines())
+    sample = [line.rstrip() for line in _readme_sample("pqc-bench libraries") if line.strip() != "..."]
+    assert len(sample) > 10
+    for line in sample:
+        assert any(line == output for output in printed), f"README line not printed in this order: {line!r}"
 
 
 def test_user_guide_hybrid_table_lists_every_hybrid_kem() -> None:

@@ -52,7 +52,7 @@ dev = [
 ]
 
 [project.scripts]
-pqc-bench = "pqc_bench.cli:app"
+pqc-bench = "pqc_bench.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/csnp/pqc-bench"

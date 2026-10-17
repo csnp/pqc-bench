@@ -98,6 +98,11 @@ class FrameworkApproval:
     effective_date: str | None = None
     notes: str | None = None
 
+    @property
+    def status_label(self) -> str:
+        """The status as shown to users: "Not approved" for "not_approved"."""
+        return self.status.replace("_", " ").capitalize()
+
 
 @dataclass
 class ComplianceProfile:
@@ -1042,9 +1047,26 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
 }
 
 
+def _name_key(text: str) -> str:
+    """``text`` in lower case with everything but letters and digits removed."""
+    return "".join(char for char in text.lower() if char.isalnum())
+
+
+# Algorithm ID by the _name_key of its ID, NIST name and legacy name.
+_ALGORITHM_IDS_BY_NAME: dict[str, str] = {
+    _name_key(name): algo.id
+    for algo in ALGORITHMS.values()
+    for name in (algo.id, algo.names.nist_name, algo.names.legacy_name)
+}
+
+
 def get_algorithm(algorithm_id: str) -> AlgorithmProfile | None:
-    """Get algorithm profile by ID."""
-    return ALGORITHMS.get(algorithm_id.lower())
+    """Get algorithm profile by ID, NIST name or legacy name ("ml-kem-768", "ML-KEM-768" or "Kyber768")."""
+    algo = ALGORITHMS.get(algorithm_id.lower())
+    if algo is not None:
+        return algo
+    known_id = _ALGORITHM_IDS_BY_NAME.get(_name_key(algorithm_id))
+    return ALGORITHMS[known_id] if known_id is not None else None
 
 
 def get_algorithms_by_type(algorithm_type: str) -> list[AlgorithmProfile]:

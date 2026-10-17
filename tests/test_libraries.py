@@ -62,6 +62,33 @@ class TestLibraryDatabase:
         lib_ids = [lib.id for lib in libs]
         assert "aws-lc" in lib_ids
 
+    @pytest.mark.parametrize("variant", ["512", "1024"])
+    def test_libraries_for_falcon(self, variant: str) -> None:
+        """A two-part ID such as falcon-512 finds the libraries whose data lists that Falcon variant."""
+        listed = [lib.id for lib in LIBRARIES.values() if lib.algorithms and variant in lib.algorithms.falcon]
+        assert "liboqs" in listed
+        assert [lib.id for lib in get_libraries_for_algorithm(f"falcon-{variant}")] == listed
+
+    @pytest.mark.parametrize(
+        ("name", "algo_id"),
+        [("Kyber768", "ml-kem-768"), ("Dilithium3", "ml-dsa-65"), ("FN-DSA-512", "falcon-512")],
+    )
+    def test_libraries_for_a_legacy_or_nist_name(self, name: str, algo_id: str) -> None:
+        """A legacy or NIST name finds the same libraries as the algorithm ID."""
+        assert get_libraries_for_algorithm(algo_id)
+        assert get_libraries_for_algorithm(name) == get_libraries_for_algorithm(algo_id)
+
+    def test_libraries_for_an_slh_dsa_set_without_an_algorithm_profile(self) -> None:
+        """slh-dsa-128s has no algorithm profile; its ID still finds the libraries that list it."""
+        listed = [lib.id for lib in LIBRARIES.values() if lib.algorithms and "128s" in lib.algorithms.slh_dsa]
+        assert listed
+        assert [lib.id for lib in get_libraries_for_algorithm("slh-dsa-128s")] == listed
+
+    @pytest.mark.parametrize("value", ["", "falcon", "bogus", "x-512", "__class___x", "__dict___x"])
+    def test_libraries_for_an_unknown_value_is_empty(self, value: str) -> None:
+        """A value that names no supported family finds no library and raises nothing."""
+        assert get_libraries_for_algorithm(value) == []
+
     def test_liboqs_is_experimental(self) -> None:
         """liboqs should be marked as experimental."""
         liboqs = get_library("liboqs")
@@ -132,6 +159,19 @@ class TestHybridModes:
         # Should be signature hybrids
         for mode in modes:
             assert mode.kem_or_sig == "signature"
+
+    @pytest.mark.parametrize("use_case", ["signature", "signatures", "code signing"])
+    def test_hybrid_modes_for_signatures(self, use_case: str) -> None:
+        """"signature" selects the composite signature hybrids, like "certificate" and "signing"."""
+        modes = get_hybrid_modes_for_use_case(use_case)
+        assert [mode.id for mode in modes] == [
+            mode.id for mode in HYBRID_MODES.values() if mode.kem_or_sig == "signature"
+        ]
+
+    @pytest.mark.parametrize("use_case", ["", "bogus", "kem", "database"])
+    def test_hybrid_modes_for_an_unknown_use_case_is_empty(self, use_case: str) -> None:
+        """A use case that holds none of the use-case words selects no hybrid mode."""
+        assert get_hybrid_modes_for_use_case(use_case) == []
 
     def test_hybrid_mode_has_combined_size(self) -> None:
         """Hybrid modes should have combined size calculated."""
