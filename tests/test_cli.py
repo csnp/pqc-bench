@@ -1,6 +1,8 @@
 """Tests for CLI output formats."""
 
 import json
+import re
+from pathlib import Path
 
 import pytest
 from rich.console import Console
@@ -142,3 +144,79 @@ def test_recommend_json_matches_intel_only_as_a_word(query: str, platform: str |
     result = CliRunner().invoke(cli.app, ["recommend", query, "--json"])
     assert result.exit_code == 0
     assert json.loads(result.output)["constraints"]["platform"] == platform
+
+
+KEM_SECTION = "Key Encapsulation (KEM):"
+SIGNATURE_SECTION = "Digital Signatures:"
+
+
+def test_compliance_use_case_tls_changes_the_page() -> None:
+    """--use-case tls says what it shows, so the page differs from the unfiltered one."""
+    unfiltered = CliRunner().invoke(cli.app, ["compliance", "fips-140-3"])
+    filtered = CliRunner().invoke(cli.app, ["compliance", "fips-140-3", "--use-case", "tls"])
+    assert unfiltered.exit_code == 0
+    assert filtered.exit_code == 0
+    assert filtered.output != unfiltered.output
+    assert "Showing requirements for: tls (key establishment and signatures)" in filtered.output
+    assert KEM_SECTION in filtered.output
+    assert SIGNATURE_SECTION in filtered.output
+
+
+@pytest.mark.parametrize(
+    ("use_case", "shown", "hidden"),
+    [
+        ("jwt", SIGNATURE_SECTION, KEM_SECTION),
+        ("JWT", SIGNATURE_SECTION, KEM_SECTION),
+        ("file-encryption", KEM_SECTION, SIGNATURE_SECTION),
+        ("file_encryption", KEM_SECTION, SIGNATURE_SECTION),
+        ("signatures", SIGNATURE_SECTION, KEM_SECTION),
+        ("kem", KEM_SECTION, SIGNATURE_SECTION),
+        ("key-exchange", KEM_SECTION, SIGNATURE_SECTION),
+    ],
+)
+def test_compliance_use_case_shows_only_the_algorithms_it_needs(
+    use_case: str, shown: str, hidden: str
+) -> None:
+    """A signature-only use case hides the KEM list; a KEM-only use case hides the signature list."""
+    result = CliRunner().invoke(cli.app, ["compliance", "fips-140-3", "--use-case", use_case])
+    assert result.exit_code == 0
+    assert shown in result.output
+    assert hidden not in result.output
+    assert "Minimum Security Level:" in result.output
+    assert "References" in result.output
+
+
+def test_compliance_use_case_jwt_lists_no_kem_algorithm() -> None:
+    """The FIPS 140-3 page for jwt names no ML-KEM parameter set."""
+    result = CliRunner().invoke(cli.app, ["compliance", "fips-140-3", "--use-case", "jwt"])
+    assert result.exit_code == 0
+    assert "ML-KEM" not in result.output
+    assert "ML-DSA-44" in result.output
+
+
+def test_compliance_use_case_signatures_runs_for_cnsa() -> None:
+    """The user guide example `compliance cnsa-2.0 --use-case signatures` exits 0."""
+    result = CliRunner().invoke(cli.app, ["compliance", "cnsa-2.0", "--use-case", "signatures"])
+    assert result.exit_code == 0
+    assert "Showing requirements for: signatures (signatures only)" in result.output
+    assert "ML-DSA-87" in result.output
+    assert KEM_SECTION not in result.output
+
+
+def test_compliance_unknown_use_case_exits_1_and_lists_accepted_values() -> None:
+    """An unknown use case is an error that names the values the option accepts."""
+    result = CliRunner().invoke(cli.app, ["compliance", "fips-140-3", "--use-case", "bogus"])
+    assert result.exit_code == 1
+    assert "Unknown use case: bogus" in result.output
+    assert "tls" in result.output
+    assert "file-encryption" in result.output
+    assert "signatures" in result.output
+    assert "Algorithm Requirements" not in result.output
+
+
+def test_user_guide_names_every_accepted_compliance_use_case() -> None:
+    """The user guide sentence on --use-case lists exactly the values the option accepts."""
+    guide = (Path(__file__).parent.parent / "docs" / "USER_GUIDE.md").read_text()
+    sentence = next(line for line in guide.splitlines() if line.startswith("`--use-case` shows"))
+    named = re.findall(r"`([a-z-]+)`", sentence.split("It accepts", 1)[1])
+    assert named == list(cli.COMPLIANCE_USE_CASES)

@@ -8,8 +8,10 @@ comparisons, and migration guidance.
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 
 from . import __version__
+from .core.constraints import UseCase
 from .core.engine import RecommendationEngine
 from .core.parser import QueryParser
 from .data.algorithms import ALGORITHMS, get_algorithm
@@ -488,6 +490,26 @@ def migrate(
     console.print()
 
 
+# Use cases accepted by `compliance --use-case`, mapped to whether they need
+# key establishment (KEM) and signatures. Use cases that need neither are left out.
+COMPLIANCE_USE_CASES: dict[str, tuple[bool, bool]] = {
+    uc.value.replace("_", "-"): (uc.needs_kem, uc.needs_signature)
+    for uc in UseCase
+    if uc.needs_kem or uc.needs_signature
+}
+COMPLIANCE_USE_CASES["kem"] = (True, False)
+COMPLIANCE_USE_CASES["signatures"] = (False, True)
+
+
+def _describe_use_case_sides(needs_kem: bool, needs_signature: bool) -> str:
+    """Name the algorithm lists a compliance use case shows."""
+    if needs_kem and needs_signature:
+        return "key establishment and signatures"
+    if needs_kem:
+        return "key establishment only"
+    return "signatures only"
+
+
 @app.command()
 def compliance(
     framework: str = typer.Argument(
@@ -498,7 +520,8 @@ def compliance(
         None,
         "--use-case",
         "-u",
-        help="Filter by use case (e.g., tls, jwt, file-encryption)",
+        help="Show only the algorithms this use case needs. Accepted values: "
+        + ", ".join(COMPLIANCE_USE_CASES),
     ),
 ) -> None:
     """
@@ -522,9 +545,25 @@ def compliance(
             console.print(f"  • {fw_id}: {fw_data.name}")
         raise typer.Exit(1)
 
+    show_kem = show_signatures = True
+    use_case_name = None
+    if use_case is not None:
+        use_case_name = use_case.strip().lower().replace("_", "-").replace(" ", "-")
+        if use_case_name not in COMPLIANCE_USE_CASES:
+            console.print(f"[red]Unknown use case: {escape(use_case)}[/red]")
+            console.print()
+            console.print("Accepted use cases:")
+            for name, (needs_kem, needs_signature) in COMPLIANCE_USE_CASES.items():
+                console.print(f"  • {name}: {_describe_use_case_sides(needs_kem, needs_signature)}")
+            raise typer.Exit(1)
+        show_kem, show_signatures = COMPLIANCE_USE_CASES[use_case_name]
+
     console.print()
     console.print(f"[bold]{fw.name}[/bold]")
     console.print("═" * 60)
+    if use_case_name is not None:
+        sides = _describe_use_case_sides(show_kem, show_signatures)
+        console.print(f"Showing requirements for: {use_case_name} ({sides})")
     console.print()
 
     console.print(f"[dim]Authority:[/dim] {fw.authority}")
@@ -539,7 +578,7 @@ def compliance(
     console.print("[bold]Algorithm Requirements[/bold]")
     console.print("─" * 40)
 
-    if fw.requirements.kem_algorithms:
+    if show_kem and fw.requirements.kem_algorithms:
         console.print("  [dim]Key Encapsulation (KEM):[/dim]")
         for algo_id in fw.requirements.kem_algorithms:
             algo = get_algorithm(algo_id)
@@ -548,7 +587,7 @@ def compliance(
             else:
                 console.print(f"    • {algo_id}")
 
-    if fw.requirements.signature_algorithms:
+    if show_signatures and fw.requirements.signature_algorithms:
         console.print("  [dim]Digital Signatures:[/dim]")
         for algo_id in fw.requirements.signature_algorithms:
             algo = get_algorithm(algo_id)
