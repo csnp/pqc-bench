@@ -369,14 +369,59 @@ pqc-bench recommend "your query" --json
 ```
 
 **Example JSON output:**
-```json
+
+The `recommendations` list holds up to three entries, or up to the number given with `--top`. This example uses `--top 1` to keep it short.
+
+```bash
+$ pqc-bench recommend "TLS 1.3 for nginx web server" --json --top 1
 {
-  "recommendation": "ML-KEM-768",
-  "confidence": "high",
-  "security_level": 3,
-  "rationale": ["NIST standardized", "Good performance"],
-  "alternatives": ["ML-KEM-1024"],
-  "warnings": []
+  "version": "0.3.0",
+  "query": "TLS 1.3 for nginx web server",
+  "constraints": {
+    "use_case": "tls",
+    "platform": "x86_64_avx2",
+    "needs_kem": true,
+    "needs_signature": true,
+    "min_security_level": 3,
+    "compliance_frameworks": [],
+    "matched_terms": [
+      "server",
+      "tls"
+    ]
+  },
+  "recommendations": [
+    {
+      "rank": 1,
+      "algorithm_id": "ml-kem-1024",
+      "algorithm_name": "ML-KEM-1024",
+      "fips": "FIPS 203",
+      "score": 86.0,
+      "confidence": "high",
+      "type": "kem",
+      "security": {
+        "nist_level": 5,
+        "classical_bits": 256,
+        "quantum_bits": 218,
+        "constant_time": true
+      },
+      "sizes": {
+        "public_key": 1568,
+        "private_key": 3168,
+        "signature": null,
+        "ciphertext": 1568
+      },
+      "reasons": [
+        "NIST standardized (FIPS 203)",
+        "Strong security (NIST Level 5)",
+        "Constant-time implementation (side-channel resistant)",
+        "Optimized for x86_64_avx2"
+      ],
+      "warnings": []
+    }
+  ],
+  "notes": [
+    "TLS/VPN requires both KEM and signature algorithms. See 'pqc-bench hybrid' for hybrid modes."
+  ]
 }
 ```
 

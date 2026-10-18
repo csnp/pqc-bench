@@ -90,9 +90,9 @@ def test_readme_example_results_match_the_cli() -> None:
     } <= set(checked)
 
 
-def _readme_sample(command: str) -> list[str]:
-    """The lines of the README code block that follow the line ``$ <command>``."""
-    lines = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+def _doc_sample(command: str, path: Path = ROOT / "README.md") -> list[str]:
+    """The lines of the code block in ``path`` that follow the line ``$ <command>``."""
+    lines = path.read_text(encoding="utf-8").splitlines()
     start = lines.index(f"$ {command}") + 1
     return lines[start : lines.index("```", start)]
 
@@ -103,10 +103,19 @@ def test_readme_libraries_sample_is_output_of_the_cli(monkeypatch: pytest.Monkey
     result = CliRunner().invoke(app, ["libraries"])
     assert result.exit_code == 0
     printed = iter(line.rstrip() for line in result.output.splitlines())
-    sample = [line.rstrip() for line in _readme_sample("pqc-bench libraries") if line.strip() != "..."]
+    sample = [line.rstrip() for line in _doc_sample("pqc-bench libraries") if line.strip() != "..."]
     assert len(sample) > 10
     for line in sample:
         assert any(line == output for output in printed), f"README line not printed in this order: {line!r}"
+
+
+def test_user_guide_json_sample_is_output_of_the_cli() -> None:
+    """The user guide's --json sample is the whole document the CLI prints for that command, line for line."""
+    command = 'pqc-bench recommend "TLS 1.3 for nginx web server" --json --top 1'
+    result = CliRunner().invoke(app, shlex.split(command)[1:])
+    assert result.exit_code == 0
+    sample = _doc_sample(command, ROOT / "docs" / "USER_GUIDE.md")
+    assert sample == result.output.splitlines(), f"docs/USER_GUIDE.md sample is not the output of: {command}"
 
 
 def test_user_guide_hybrid_table_lists_every_hybrid_kem() -> None:
