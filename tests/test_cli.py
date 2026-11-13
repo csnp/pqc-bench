@@ -1524,6 +1524,33 @@ def test_libraries_shows_no_fips_certificate_for_boringssl_pqc(monkeypatch: pyte
     assert "4407" not in fips.output
 
 
+def test_libraries_fips_help_says_the_certificate_must_list_pqc() -> None:
+    """--fips's help says it counts only a FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA.
+
+    Without this, a reader of --help sees only "Show only FIPS-validated libraries" and has no reason
+    to expect BoringSSL and wolfSSL, which hold other FIPS 140-3 certificates, to be excluded.
+    """
+    result = CliRunner().invoke(cli.app, ["libraries", "--help"])
+    assert result.exit_code == 0
+    assert "FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA" in _error_words(result.output)
+
+
+@pytest.mark.parametrize("options", [[], ["--fips"], ["--production"]])
+def test_libraries_table_explains_what_the_fips_column_counts(
+    monkeypatch: pytest.MonkeyPatch, options: list[str]
+) -> None:
+    """The table under any filter says FIPS means a certificate that lists ML-KEM, ML-DSA or SLH-DSA.
+
+    Otherwise a reader of the table sees BoringSSL and wolfSSL marked No and concludes they hold no
+    FIPS validation at all, when each holds FIPS 140-3 certificates for its classical module.
+    """
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", *options])
+    assert result.exit_code == 0
+    text = " ".join(result.output.split())
+    assert "FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA" in text
+
+
 @pytest.mark.parametrize("algorithm", sorted(ALGORITHMS))
 def test_explain_prints_no_quantum_security_bits(algorithm: str) -> None:
     """explain shows no quantum security bit figure, a number with no cited source."""
