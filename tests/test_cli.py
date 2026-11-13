@@ -1036,6 +1036,31 @@ def test_libraries_every_id_listed_for_an_unknown_algorithm_finds_libraries(monk
 
 
 @pytest.mark.parametrize(
+    ("name", "algo_id"),
+    [
+        *((fips_name, algo_id) for algo_id, fips_name in UNPROFILED_ALGORITHM_NAMES.items()),
+        ("slhdsa128s", "slh-dsa-128s"),
+    ],
+)
+def test_libraries_fips_205_name_of_an_slh_dsa_set_prints_what_its_id_prints(
+    monkeypatch: pytest.MonkeyPatch, name: str, algo_id: str
+) -> None:
+    """The FIPS 205 name of an SLH-DSA set with no profile, or its ID without separators, prints what its ID prints.
+
+    SLH-DSA-SHA2-128s printed "No libraries found supporting SLH-DSA-SHA2-128s" and exited 0, while
+    slh-dsa-128s listed BoringSSL and liboqs.
+    """
+    _wide_console(monkeypatch)
+    by_id = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algo_id])
+    assert by_id.exit_code == 0
+    assert "liboqs (Open Quantum Safe)" in _library_rows(by_id.output)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", name])
+    assert result.exit_code == 0
+    assert "No libraries found" not in result.output
+    assert result.output == by_id.output
+
+
+@pytest.mark.parametrize(
     "algorithm", ["ml-kem-768", "Kyber768", "slh-dsa-128s", "SLH-DSA-SHA2-128s", "X25519MLKEM768"]
 )
 def test_libraries_known_algorithm_with_no_library_is_not_called_unknown(

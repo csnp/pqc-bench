@@ -18,7 +18,7 @@ Production-readiness factors:
 from dataclasses import dataclass, field, fields
 from enum import Enum
 
-from .algorithms import get_algorithm
+from .algorithms import get_algorithm, get_unprofiled_algorithm_id
 
 
 class ProductionReadiness(Enum):
@@ -628,11 +628,15 @@ ALGORITHM_FAMILY_NAMES: dict[str, str] = {
 def _family_and_variant(algorithm_id: str) -> tuple[str, str] | None:
     """The AlgorithmSupport field and variant of an algorithm given by ID, NIST name or legacy name.
 
-    None for a value that names no AlgorithmSupport field.
+    An SLH-DSA set with no algorithm profile is given by ID or FIPS 205 name ("slh-dsa-128s" or
+    "SLH-DSA-SHA2-128s"). None for a value that names no AlgorithmSupport field.
     """
     algo = get_algorithm(algorithm_id)
     if algo is not None:
         algorithm_id = algo.id
+    else:
+        # An SLH-DSA set with no profile: "SLH-DSA-SHA2-128s" and "slhdsa128s" -> "slh-dsa-128s"
+        algorithm_id = get_unprofiled_algorithm_id(algorithm_id) or algorithm_id
 
     # Split the ID into an AlgorithmSupport field and a variant:
     # "ml-kem-768" -> "ml_kem", "768" and "falcon-512" -> "falcon", "512"
@@ -645,8 +649,8 @@ def _family_and_variant(algorithm_id: str) -> tuple[str, str] | None:
 def get_algorithm_family(algorithm_id: str) -> str | None:
     """The AlgorithmSupport field of an algorithm given by ID, NIST name or legacy name.
 
-    "ml-dsa-65", "ML-DSA-65" and "Dilithium3" give "ml_dsa". None for a value that names no
-    AlgorithmSupport field.
+    "ml-dsa-65", "ML-DSA-65" and "Dilithium3" give "ml_dsa", and "SLH-DSA-SHA2-128s" gives "slh_dsa".
+    None for a value that names no AlgorithmSupport field.
     """
     family_and_variant = _family_and_variant(algorithm_id)
     return None if family_and_variant is None else family_and_variant[0]
@@ -665,7 +669,10 @@ def get_fips_certificate_for_family(library: LibraryProfile, family: str) -> str
 
 
 def get_libraries_for_algorithm(algorithm_id: str) -> list[LibraryProfile]:
-    """Get libraries that support an algorithm, given by ID, NIST name or legacy name."""
+    """Get libraries that support an algorithm, given by ID, NIST name or legacy name.
+
+    An SLH-DSA set with no algorithm profile is given by ID or FIPS 205 name.
+    """
     family_and_variant = _family_and_variant(algorithm_id)
     if family_and_variant is None:
         return []
