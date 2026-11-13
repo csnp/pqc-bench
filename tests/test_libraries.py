@@ -123,6 +123,20 @@ class TestLibraryDatabase:
             "cover the classical wolfCrypt module; none lists ML-KEM, ML-DSA or SLH-DSA"
         ]
 
+    def test_aws_lc_cites_a_certificate_that_lists_ml_kem(self) -> None:
+        """AWS-LC cites #5298, an AWS-LC 3 module certificate that lists ML-KEM, not #4793 (another vendor's)."""
+        aws_lc = get_library("aws-lc")
+        assert aws_lc is not None
+        assert aws_lc.fips_cert_number == "5298"
+        assert aws_lc.fips_status == FIPSStatus.VALIDATED
+        assert aws_lc in get_libraries_with_fips()
+        scope = [c.description for c in aws_lc.caveats if "#5298" in c.description]
+        assert scope == [
+            "FIPS 140-3 certificates #5298 (dynamic) and #5314 (static) for the AWS-LC 3 Cryptographic Module "
+            "list ML-KEM; neither lists ML-DSA or SLH-DSA"
+        ]
+        assert not [c for c in aws_lc.caveats if "pending final validation" in c.description]
+
 
 class TestHybridModes:
     """Tests for hybrid mode database."""

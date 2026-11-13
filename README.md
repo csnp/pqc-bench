@@ -132,7 +132,7 @@ Cryptographic Libraries for PQC
 ╭───────────────────────────┬──────────────┬───────┬───────────────────────────╮
 │ Library                   │ Production   │ FIPS  │ Notable Users             │
 ├───────────────────────────┼──────────────┼───────┼───────────────────────────┤
-│ AWS-LC (AWS Libcrypto)    │ Production   │ #4793 │ AWS SDK, AWS S3, AWS KMS  │
+│ AWS-LC (AWS Libcrypto)    │ Production   │ #5298 │ AWS SDK, AWS S3, AWS KMS  │
 │ BoringSSL                 │ Production   │ #4407 │ Google Chrome,            │
 │                           │              │       │ Cloudflare, Android       │
 │ OpenSSL 3.5+              │ Production   │ No    │ nginx, Apache HTTPD, curl │
