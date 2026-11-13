@@ -830,6 +830,27 @@ def _certificate_leaves_out(lib: LibraryProfile, family: str) -> Text:
     return Text(f"{lib.name}: FIPS certificate #{lib.fips_cert_number} {scope}.")
 
 
+def _fips_column_note(family: str | None, shows_unrecorded: bool) -> str:
+    """The line under the libraries table that says which certificates the FIPS column shows.
+
+    ``family`` is the AlgorithmSupport field of --algorithm, or None when --algorithm does not
+    filter the table. ``shows_unrecorded`` is true when the column shows a certificate whose
+    algorithm families are not recorded, which it shows for every family. The text holds no
+    markup: the family name comes from ALGORITHM_FAMILY_NAMES, not from the command line.
+    """
+    if family is None:
+        return (
+            "FIPS here means a FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA; a library "
+            "can hold FIPS 140-3 certificates for classical algorithms only and still show No."
+        )
+    family_name = ALGORITHM_FAMILY_NAMES[family]
+    unrecorded = ", or one whose algorithm families are not recorded here" if shows_unrecorded else ""
+    return (
+        f"FIPS here means a FIPS 140-3 certificate that lists {family_name}{unrecorded}; a library "
+        f"can hold FIPS 140-3 certificates that do not list {family_name} and still show No."
+    )
+
+
 @app.command()
 def libraries(
     production_only: bool = typer.Option(
@@ -899,6 +920,8 @@ def libraries(
 
     # A line for each certificate the FIPS column leaves out because it does not list the family
     left_out: list[Text] = []
+    # Whether the column shows, for that family, a certificate whose families are not recorded
+    shows_unrecorded = False
     for lib in libs:
         # Production readiness styling
         if lib.production_readiness == ProductionReadiness.PRODUCTION:
@@ -915,6 +938,8 @@ def libraries(
         cert = lib.fips_cert_number if family is None else get_fips_certificate_for_family(lib, family)
         if cert:
             fips = f"[green]#{cert}[/green]"
+            if family is not None and lib.fips_cert_families is None:
+                shows_unrecorded = True
         else:
             fips = "[dim]No[/dim]"
             if family is not None and lib.fips_cert_number:
@@ -927,10 +952,8 @@ def libraries(
 
     console.print(table)
     console.print()
-    console.print(
-        "[dim]FIPS here means a FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA; a library "
-        "can hold FIPS 140-3 certificates for classical algorithms only and still show No.[/dim]"
-    )
+    # Under --algorithm the note names the family the column counts, so it agrees with the lines below
+    console.print(f"[dim]{_fips_column_note(family, shows_unrecorded)}[/dim]")
     console.print()
 
     # Say which algorithm families each certificate the FIPS column left out lists

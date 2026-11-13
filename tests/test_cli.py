@@ -1,5 +1,6 @@
 """Tests for CLI output formats."""
 
+import dataclasses
 import inspect
 import io
 import json
@@ -26,6 +27,7 @@ from pqc_bench.data.libraries import (
     HYBRID_KEM_USE_CASE_WORDS,
     HYBRID_MODES,
     HYBRID_SIGNATURE_USE_CASE_WORDS,
+    LIBRARIES,
 )
 from pqc_bench.data.threat_model import ThreatUrgency, get_profiles_by_urgency
 from pqc_bench.output.terminal import TerminalOutput, print_rule
@@ -1549,6 +1551,52 @@ def test_libraries_table_explains_what_the_fips_column_counts(
     assert result.exit_code == 0
     text = " ".join(result.output.split())
     assert "FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA" in text
+
+
+@pytest.mark.parametrize(
+    ("algorithm", "family_name"),
+    [
+        ("ml-dsa-65", "ML-DSA"),
+        ("Dilithium3", "ML-DSA"),
+        ("ml-kem-768", "ML-KEM"),
+        ("slh-dsa-128f", "SLH-DSA"),
+        ("falcon-512", "Falcon"),
+    ],
+)
+def test_libraries_algorithm_footer_names_the_family_the_fips_column_counts(
+    monkeypatch: pytest.MonkeyPatch, algorithm: str, family_name: str
+) -> None:
+    """Under --algorithm the line under the table names the one family the FIPS column counts.
+
+    For ml-dsa-65 the column reads No for AWS-LC, whose certificate #5298 lists ML-KEM and not ML-DSA.
+    A line saying FIPS means a certificate that lists ML-KEM, ML-DSA or SLH-DSA contradicted that No
+    and the line after it saying #5298 lists ML-KEM, not ML-DSA.
+    """
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algorithm])
+    assert result.exit_code == 0
+    text = " ".join(result.output.split())
+    assert (
+        f"FIPS here means a FIPS 140-3 certificate that lists {family_name}; a library can hold FIPS 140-3 "
+        f"certificates that do not list {family_name} and still show No."
+    ) in text
+    assert "ML-KEM, ML-DSA or SLH-DSA" not in text
+
+
+def test_libraries_algorithm_footer_names_a_certificate_whose_families_are_not_recorded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A certificate whose families are not recorded shows for ml-dsa-65, and the line under the table says so."""
+    _wide_console(monkeypatch)
+    monkeypatch.setitem(LIBRARIES, "aws-lc", dataclasses.replace(LIBRARIES["aws-lc"], fips_cert_families=None))
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", "ml-dsa-65"])
+    assert result.exit_code == 0
+    assert _library_rows(result.output)["AWS-LC (AWS Libcrypto)"][1:3] == ["Production", "#5298"]
+    text = " ".join(result.output.split())
+    assert (
+        "FIPS here means a FIPS 140-3 certificate that lists ML-DSA, or one whose algorithm families are not "
+        "recorded here; a library can hold FIPS 140-3 certificates that do not list ML-DSA and still show No."
+    ) in text
 
 
 @pytest.mark.parametrize("algorithm", sorted(ALGORITHMS))
