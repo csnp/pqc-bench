@@ -842,7 +842,7 @@ def libraries(
         False,
         "--fips",
         "-f",
-        help="Show only FIPS-validated libraries",
+        help="Show only libraries with a FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA",
     ),
     algorithm: str | None = typer.Option(
         None,
@@ -926,6 +926,11 @@ def libraries(
         table.add_row(lib.name, prod, fips, users)
 
     console.print(table)
+    console.print()
+    console.print(
+        "[dim]FIPS here means a FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA; a library "
+        "can hold FIPS 140-3 certificates for classical algorithms only and still show No.[/dim]"
+    )
     console.print()
 
     # Say which algorithm families each certificate the FIPS column left out lists
