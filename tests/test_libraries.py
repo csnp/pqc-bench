@@ -137,6 +137,20 @@ class TestLibraryDatabase:
         ]
         assert not [c for c in aws_lc.caveats if "pending final validation" in c.description]
 
+    def test_boringssl_has_no_pqc_fips_certificate(self) -> None:
+        """BoringSSL has no certificate number and is not in the FIPS list: #4407 is historical and lists no PQC."""
+        boringssl = get_library("boringssl")
+        assert boringssl is not None
+        assert boringssl.production_readiness == ProductionReadiness.PRODUCTION
+        assert boringssl.fips_cert_number is None
+        assert boringssl.fips_status == FIPSStatus.IN_PROCESS
+        assert boringssl not in get_libraries_with_fips()
+        scope = [c.description for c in boringssl.caveats if "#4407" in c.description]
+        assert scope == [
+            "FIPS 140-2 certificate #4407 (now historical) and FIPS 140-3 certificates #4735, #5104, #5244 and #5296 "
+            "cover the classical BoringCrypto module; none lists ML-KEM, ML-DSA or SLH-DSA"
+        ]
+
 
 class TestHybridModes:
     """Tests for hybrid mode database."""

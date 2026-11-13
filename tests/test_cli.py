@@ -1487,6 +1487,19 @@ def test_libraries_cites_an_aws_lc_certificate_that_lists_ml_kem(
     assert "4793" not in result.output
 
 
+def test_libraries_shows_no_fips_certificate_for_boringssl_pqc(monkeypatch: pytest.MonkeyPatch) -> None:
+    """BoringSSL's #4407 is a historical FIPS 140-2 certificate that lists no PQC: the FIPS column reads No."""
+    _wide_console(monkeypatch)
+    listed = CliRunner().invoke(cli.app, ["libraries"])
+    assert listed.exit_code == 0
+    assert _library_rows(listed.output)["BoringSSL"][1:3] == ["Production", "No"]
+    assert "4407" not in listed.output
+    fips = CliRunner().invoke(cli.app, ["libraries", "--fips"])
+    assert fips.exit_code == 0
+    assert "BoringSSL" not in fips.output
+    assert "4407" not in fips.output
+
+
 @pytest.mark.parametrize("algorithm", sorted(ALGORITHMS))
 def test_explain_prints_no_quantum_security_bits(algorithm: str) -> None:
     """explain shows no quantum security bit figure, a number with no cited source."""
