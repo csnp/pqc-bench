@@ -403,7 +403,6 @@ $ pqc-bench recommend "TLS 1.3 for nginx web server" --json --top 1
       "security": {
         "nist_level": 5,
         "classical_bits": 256,
-        "quantum_bits": 218,
         "constant_time": true
       },
       "sizes": {
@@ -460,7 +459,7 @@ Before choosing an algorithm, verify library support:
 pqc-bench libraries
 ```
 
-**Critical warning:** liboqs is NOT production-ready. Use AWS-LC, BoringSSL, or OpenSSL 3.5+ for production.
+liboqs is not production-ready: its README says it is meant for research and prototyping. For production, use AWS-LC, BoringSSL or OpenSSL 3.5+, or run `pqc-bench libraries --production` to list the production-ready libraries.
 
 ### 4. Assess SNDL Risk
 

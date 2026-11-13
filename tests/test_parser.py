@@ -2,8 +2,8 @@
 
 import pytest
 
+from pqc_bench.core.constraints import ComplianceFramework, Platform, SecurityLevel, UseCase
 from pqc_bench.core.parser import QueryParser
-from pqc_bench.core.constraints import Platform, UseCase, SecurityLevel, ComplianceFramework
 
 
 class TestQueryParser:

@@ -328,7 +328,7 @@ $ pqc-bench compliance cnsa-2.0
 1. **ML-KEM-768** for TLS
 2. **ML-DSA-65** for transaction signing
 3. Coordinate with SWIFT for network migration
-4. Monitor DORA (EU) 2025 deadline
+4. Meet DORA's ICT risk requirements (EU, applies from 17 January 2025); DORA sets no PQC date
 
 ---
 

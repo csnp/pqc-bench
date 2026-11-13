@@ -108,11 +108,15 @@ $ pqc-bench threat --data-type healthcare_records
 ...
 ⚠ AT RISK
 
-CRITICAL: Data needs 102 years of protection, but quantum threat expected in 15
-years. You are 87 years behind.
+Data needs 102 years of protection (a 100-year lifespan plus 2 years to
+migrate), and the quantum threat is expected in 15 years, so the data outlives
+that window by 87 years.
 ...
 Recommended Action:
   Prioritize PQC for data at rest and in transit
+...
+Next step: find a library that implements ML-KEM-768
+  pqc-bench libraries --algorithm ml-kem-768
 ```
 
 ### Library Production-Readiness
@@ -135,7 +139,7 @@ Cryptographic Libraries for PQC
 │ liboqs (Open Quantum      │ Experimental │ No    │ Researchers, PQC testing  │
 │ Safe)                     │              │       │ frameworks                │
 │ pqcrypto (Rust)           │ Experimental │ No    │ -                         │
-│ wolfSSL                   │ Production   │ #3389 │ Automotive, Industrial    │
+│ wolfSSL                   │ Production   │ No    │ Automotive, Industrial    │
 │                           │              │       │ IoT, Medical devices      │
 │ Mbed TLS (with PQC)       │ Transitional │ No    │ ARM Cortex-M devices      │
 ╰───────────────────────────┴──────────────┴───────┴───────────────────────────╯

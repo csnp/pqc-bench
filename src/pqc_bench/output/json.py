@@ -43,7 +43,6 @@ class JsonOutput:
                     "security": {
                         "nist_level": rec.algorithm.security.nist_level,
                         "classical_bits": rec.algorithm.security.classical_bits,
-                        "quantum_bits": rec.algorithm.security.quantum_bits,
                         "constant_time": rec.algorithm.security.constant_time,
                     },
                     "sizes": {

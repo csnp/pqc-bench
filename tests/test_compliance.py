@@ -1,10 +1,14 @@
 """Tests for compliance framework data."""
 
+import pytest
+from rich.console import Console
 from typer.testing import CliRunner
 
+from pqc_bench import cli
 from pqc_bench.cli import app
 from pqc_bench.data.algorithms import get_algorithm
 from pqc_bench.data.compliance import (
+    COMPLIANCE_FRAMEWORKS,
     contains_keyword,
     get_framework,
     get_frameworks_for_context,
@@ -107,6 +111,47 @@ def test_compliance_command_accepts_pci_dss() -> None:
     result = CliRunner().invoke(app, ["compliance", "pci-dss"])
     assert result.exit_code == 0
     assert "PCI DSS 4.0" in result.output
+
+
+NOT_PROFILED = " (not profiled)"
+
+
+def _requirements_page(monkeypatch: pytest.MonkeyPatch, framework: str) -> tuple[str, list[str]]:
+    """The compliance page of ``framework`` and the bullets under its Algorithm Requirements."""
+    monkeypatch.setattr(cli, "console", Console(width=200, force_terminal=False))
+    result = CliRunner().invoke(app, ["compliance", framework])
+    assert result.exit_code == 0
+    section = result.output.split("Algorithm Requirements", 1)[1].split("Minimum Security Level", 1)[0]
+    bullets = [line.strip().removeprefix("• ") for line in section.splitlines() if line.strip().startswith("• ")]
+    return result.output, bullets
+
+
+def test_fips_140_3_names_each_slh_dsa_set_by_its_fips_205_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The SLH-DSA sets read SLH-DSA-SHA2-128f, SLH-DSA-SHA2-128s and so on: the names FIPS 205 uses."""
+    _, bullets = _requirements_page(monkeypatch, "fips-140-3")
+    names = [bullet.removesuffix(NOT_PROFILED) for bullet in bullets if bullet.startswith("SLH-DSA")]
+    assert names == [f"SLH-DSA-SHA2-{size}{speed}" for size in (128, 192, 256) for speed in "fs"]
+
+
+@pytest.mark.parametrize("framework", sorted(COMPLIANCE_FRAMEWORKS))
+def test_compliance_marks_each_listed_algorithm_that_has_no_profile(
+    monkeypatch: pytest.MonkeyPatch, framework: str
+) -> None:
+    """A listed name has a profile that explain shows, or carries the not-profiled mark and its note."""
+    output, bullets = _requirements_page(monkeypatch, framework)
+    assert bullets
+    marked = [bullet.endswith(NOT_PROFILED) for bullet in bullets]
+    for bullet, is_marked in zip(bullets, marked, strict=True):
+        assert (get_algorithm(bullet.removesuffix(NOT_PROFILED)) is None) is is_marked, bullet
+    assert ("Not profiled:" in output) is any(marked)
+
+
+def test_fips_140_3_profiles_only_the_128f_slh_dsa_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """SLH-DSA-SHA2-128f has a profile; the other five FIPS 140-3 SLH-DSA sets are marked."""
+    _, bullets = _requirements_page(monkeypatch, "fips-140-3")
+    slh_dsa = [bullet for bullet in bullets if bullet.startswith("SLH-DSA")]
+    assert [bullet for bullet in slh_dsa if not bullet.endswith(NOT_PROFILED)] == ["SLH-DSA-SHA2-128f"]
+    assert len(slh_dsa) == 6
 
 
 def test_context_inference_matches_cnsa_terms_as_whole_words() -> None:

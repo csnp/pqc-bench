@@ -24,7 +24,7 @@ Future development plans for PQC-Bench.
 - [ ] HQC: NIST selected it for standardization in March 2025 (NIST IR 8545); add it when NIST publishes the final HQC standard
 
 ### Additional Compliance Frameworks
-- [ ] DORA (EU Digital Operational Resilience Act) - 2025 deadline
+- [ ] DORA (EU Digital Operational Resilience Act), applies from 17 January 2025 and sets no PQC date
 - [ ] NIS2 (EU Network and Information Security Directive)
 - [ ] ISO 27001 PQC implications
 - [ ] SOC 2 considerations

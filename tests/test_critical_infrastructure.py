@@ -6,17 +6,14 @@ import pytest
 
 from pqc_bench.data.critical_infrastructure import (
     SECTOR_PROFILES,
-    Sector,
-    SectorProfile,
     MigrationUrgency,
-    RegulatoryFramework,
-    TechnicalConstraint,
-    get_sector_profile,
-    get_all_sectors,
-    get_critical_sectors,
+    SectorProfile,
     detect_sector_from_query,
-    get_sector_recommendation,
+    get_all_sectors,
     get_compliance_deadlines,
+    get_critical_sectors,
+    get_sector_profile,
+    get_sector_recommendation,
 )
 
 
@@ -75,12 +72,27 @@ class TestSectorProfiles:
         assert ot.equipment_lifecycle_years == 30
 
     def test_financial_has_deadlines(self) -> None:
-        """Financial sector has explicit compliance deadlines."""
+        """Financial sector's dated PQC requirement is NSM-10's 2035; DORA sets no PQC date."""
         fin = SECTOR_PROFILES["financial"]
-        deadlines = [r.deadline for r in fin.regulations if r.deadline]
-        assert len(deadlines) > 0
-        # Should have DORA 2025 and NSM-10 2035
-        assert any("2025" in d for d in deadlines)
+        deadlines = {r.name: r.deadline for r in fin.regulations if r.deadline}
+        assert deadlines == {"NSM-10": "2035"}
+
+    def test_dora_carries_no_pqc_date(self) -> None:
+        """DORA applies from 17 January 2025 and sets no PQC date, so its entry has no deadline."""
+        dora = next(r for r in SECTOR_PROFILES["financial"].regulations if r.name == "DORA")
+        assert dora.deadline is None
+        assert "applies from 17 January 2025" in dora.notes
+        assert "sets no PQC date" in dora.notes
+
+    def test_nist_transition_names_ir_8547_and_both_dates(self) -> None:
+        """The NIST entry is the final NIST IR 8547: deprecated after 2030, disallowed after 2035."""
+        nist = [r for r in SECTOR_PROFILES["healthcare"].regulations if r.authority == "NIST"]
+        assert [r.name for r in nist] == ["NIST IR 8547"]
+        assert nist[0].deadline == "2030-2035"
+        assert "deprecated after 2030" in nist[0].notes
+        assert "disallowed under NIST standards and guidelines after 2035" in nist[0].notes
+        assert "final, October 2026" in nist[0].notes
+        assert nist[0].url == "https://csrc.nist.gov/pubs/ir/8547/final"
 
 
 class TestSectorLookup:

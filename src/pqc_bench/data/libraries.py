@@ -2,9 +2,9 @@
 Cryptographic library database with production-readiness ratings.
 
 This module addresses a major pain point in PQC adoption: practitioners
-often don't know which libraries are safe for production. Key insight:
-liboqs is explicitly NOT production-ready (per their own documentation),
-yet many developers use it in production unaware of this.
+often don't know which libraries are safe for production. liboqs, for
+example, is not production-ready: its README says it is meant for research
+and prototyping.
 
 Production-readiness factors:
 - FIPS 140-3 validation status
@@ -352,8 +352,13 @@ LIBRARIES: dict[str, LibraryProfile] = {
         language="C",
         license="GPLv2 / Commercial",
         production_readiness=ProductionReadiness.PRODUCTION,
-        fips_status=FIPSStatus.VALIDATED,
-        fips_cert_number="3389",
+        # No CMVP certificate covers wolfSSL's PQC algorithms. CMVP certificate pages,
+        # read 2026-11-13: #3389 is a FIPS 140-2 wolfCrypt certificate, now historical;
+        # FIPS 140-3 certificates #4718, #5041 and #5548 list no ML-KEM, ML-DSA or SLH-DSA.
+        # In process: wolfSSL wrote in February 2026 that the CMVP submission of its PQC
+        # module "is in process" (https://www.wolfssl.com/?p=47093).
+        fips_status=FIPSStatus.IN_PROCESS,
+        fips_cert_number=None,
         algorithms=AlgorithmSupport(
             ml_kem=["512", "768", "1024"],
             ml_dsa=["44", "65", "87"],
@@ -368,6 +373,12 @@ LIBRARIES: dict[str, LibraryProfile] = {
             LibraryCaveat(
                 severity="info",
                 description="PQC may require commercial license",
+            ),
+            LibraryCaveat(
+                severity="info",
+                description="FIPS 140-2 certificate #3389 (now historical) and FIPS 140-3 certificates #4718, "
+                "#5041 and #5548 cover the classical wolfCrypt module; none lists ML-KEM, ML-DSA or SLH-DSA",
+                source="https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5548",
             ),
         ],
         platforms=["linux", "embedded", "rtos", "windows", "macos"],
@@ -440,12 +451,17 @@ class HybridMode:
     tls_support: bool
     chrome_support: bool
     cloudflare_support: bool
-    ietf_draft: str | None
+    ietf_reference: str | None  # The RFC that defines the mode, or the draft name until one is published
     recommended_until: str  # e.g., "2030" or "until pure PQC widely supported"
     caveats: list[str] = field(default_factory=list)
     libraries: list[str] = field(default_factory=list)  # Library IDs
 
 
+# IETF references, read 2026-11-13 on datatracker.ietf.org and rfc-editor.org:
+# draft-ietf-tls-ecdhe-mlkem was published as RFC 10024 (August 2026), which
+# defines X25519MLKEM768 (4588) and SecP384r1MLKEM1024 (4589) for TLS 1.3, and
+# draft-ietf-lamps-pq-composite-sigs as RFC 10073 (November 2026), which defines
+# the composite ML-DSA-44 + ECDSA P-256 and ML-DSA-65 + ECDSA P-384 signatures for X.509.
 HYBRID_MODES: dict[str, HybridMode] = {
     "x25519-mlkem768": HybridMode(
         id="x25519-mlkem768",
@@ -458,7 +474,7 @@ HYBRID_MODES: dict[str, HybridMode] = {
         tls_support=True,
         chrome_support=True,
         cloudflare_support=True,
-        ietf_draft="RFC 10024",
+        ietf_reference="RFC 10024",
         recommended_until="Until pure PQC is widely trusted (2030+)",
         caveats=[
             "Slightly larger TLS handshake",
@@ -478,7 +494,7 @@ HYBRID_MODES: dict[str, HybridMode] = {
         tls_support=True,
         chrome_support=False,
         cloudflare_support=False,
-        ietf_draft="RFC 10024",
+        ietf_reference="RFC 10024",
         recommended_until="Until pure ML-KEM-1024 is widely trusted",
         caveats=[
             "Carries ML-KEM-1024, the KEM that CNSA 2.0 requires",
@@ -497,11 +513,11 @@ HYBRID_MODES: dict[str, HybridMode] = {
         tls_support=False,  # Not yet standardized
         chrome_support=False,
         cloudflare_support=False,
-        ietf_draft="draft-ietf-lamps-pq-composite-sigs",
+        ietf_reference="RFC 10073",
         recommended_until="Until pure PQC widely trusted",
         caveats=[
             "Certificate chain size increases significantly",
-            "Standardization ongoing (X.509 composite signatures)",
+            "X.509 composite signatures are specified in RFC 10073 (November 2026)",
         ],
         libraries=["aws-lc"],
     ),
@@ -516,7 +532,7 @@ HYBRID_MODES: dict[str, HybridMode] = {
         tls_support=False,
         chrome_support=False,
         cloudflare_support=False,
-        ietf_draft="draft-ietf-lamps-pq-composite-sigs",
+        ietf_reference="RFC 10073",
         recommended_until="Until pure PQC widely trusted",
         caveats=[
             "Large combined signature size",

@@ -1,14 +1,12 @@
 """Tests for the protocol impact analysis module."""
 
-import pytest
-
 from pqc_bench.data.protocol_impact import (
     CLASSICAL_SIZES,
+    analyze_certificate_chain,
     calculate_tls_kem_impact,
     calculate_tls_signature_impact,
-    analyze_certificate_chain,
-    get_ossification_risks,
     estimate_operation_latency,
+    get_ossification_risks,
     get_size_comparison_table,
 )
 

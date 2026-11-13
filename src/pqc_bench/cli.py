@@ -6,7 +6,7 @@ comparisons, and migration guidance.
 """
 
 
-from typing import cast
+from typing import TypedDict
 
 import typer
 from rich.console import Console
@@ -16,7 +16,7 @@ from . import __version__
 from .core.constraints import UseCase
 from .core.engine import RecommendationEngine
 from .core.parser import QueryParser
-from .data.algorithms import ALGORITHMS, AlgorithmProfile, get_algorithm
+from .data.algorithms import ALGORITHMS, UNPROFILED_ALGORITHM_NAMES, AlgorithmProfile, get_algorithm
 from .data.compliance import COMPLIANCE_FRAMEWORKS, get_framework
 from .data.libraries import (
     HYBRID_KEM_USE_CASE_WORDS,
@@ -398,6 +398,23 @@ def compare(
             console.print()
 
 
+class _ClassicalSizes(TypedDict, total=False):
+    """Signature size of a classical signature scheme, or ciphertext size of a key exchange, in bytes."""
+
+    signature: int
+    ciphertext: int
+
+
+class _ClassicalAlgorithm(_ClassicalSizes):
+    """A classical algorithm that migrate covers, and the PQC algorithms that replace it."""
+
+    name: str
+    type: str  # "signature" or "kem"
+    pub_key: int
+    recommendation: str
+    alternative: str
+
+
 @app.command()
 def migrate(
     from_algo: str = typer.Option(
@@ -421,7 +438,7 @@ def migrate(
     from_lower = from_algo.lower().replace("-", "").replace("_", "")
 
     # Define classical algorithm properties and PQC recommendations
-    migrations = {
+    migrations: dict[str, _ClassicalAlgorithm] = {
         "rsa2048": {
             "name": "RSA-2048",
             "type": "signature",
@@ -545,8 +562,8 @@ def migrate(
         # The same computation as `impact`, against the key share of the key exchange in this table.
         handshake = calculate_tls_kem_impact(
             pqc_algo.id,
-            baseline_name=cast(str, classical["name"]),
-            baseline_key_share=cast(int, classical["pub_key"]),
+            baseline_name=classical["name"],
+            baseline_key_share=classical["pub_key"],
         )
         if handshake is not None:
             console.print(f"  • TLS 1.3 handshake vs {classical['name']}, both directions:")
@@ -669,23 +686,28 @@ def compliance(
     console.print("[bold]Algorithm Requirements[/bold]")
     print_rule(console, "─", 40)
 
-    if show_kem and fw.requirements.kem_algorithms:
-        console.print("  [dim]Key Encapsulation (KEM):[/dim]")
-        for algo_id in fw.requirements.kem_algorithms:
+    sections = [
+        ("Key Encapsulation (KEM):", show_kem, fw.requirements.kem_algorithms),
+        ("Digital Signatures:", show_signatures, fw.requirements.signature_algorithms),
+    ]
+    any_unprofiled = False
+    for heading, shown, algo_ids in sections:
+        if not (shown and algo_ids):
+            continue
+        console.print(f"  [dim]{heading}[/dim]")
+        for algo_id in algo_ids:
             algo = get_algorithm(algo_id)
             if algo:
                 console.print(f"    • {algo.names.nist_name}")
             else:
-                console.print(f"    • {algo_id}")
-
-    if show_signatures and fw.requirements.signature_algorithms:
-        console.print("  [dim]Digital Signatures:[/dim]")
-        for algo_id in fw.requirements.signature_algorithms:
-            algo = get_algorithm(algo_id)
-            if algo:
-                console.print(f"    • {algo.names.nist_name}")
-            else:
-                console.print(f"    • {algo_id.upper()}")
+                any_unprofiled = True
+                name = UNPROFILED_ALGORITHM_NAMES.get(algo_id, algo_id.upper())
+                console.print(f"    • {name} [dim](not profiled)[/dim]")
+    if any_unprofiled:
+        console.print(
+            "  [dim]Not profiled: listed by the framework, but this tool has no profile for it, "
+            "so explain and compare do not cover it. pqc-bench list shows the profiled algorithms.[/dim]"
+        )
 
     console.print(f"  [dim]Minimum Security Level:[/dim] NIST Level {fw.requirements.min_security_level}")
 
@@ -813,8 +835,8 @@ def libraries(
     """
     List cryptographic libraries with production-readiness ratings.
 
-    This is critical information - liboqs is explicitly NOT production-ready,
-    yet many developers use it unaware of this.
+    liboqs is a research library and is not production-ready;
+    --production lists the libraries that are.
 
     Examples:
 
@@ -879,15 +901,17 @@ def libraries(
     console.print(table)
     console.print()
 
-    # Show critical warning about liboqs
+    # liboqs is in the unfiltered table: say why it is not for production and what to run next
     liboqs = LIBRARIES.get("liboqs")
     if liboqs and not production_only and not fips_only:
-        console.print("[bold red]CRITICAL WARNING[/bold red]")
+        console.print("[bold]liboqs is not production-ready[/bold]")
         print_rule(console, "─", 40)
-        console.print("  liboqs is explicitly NOT production-ready.")
-        console.print("  Per liboqs README: 'NOT safe for production'")
+        console.print("  Its README says it is meant for research and prototyping, and does not")
+        console.print("  recommend relying on it in production or to protect sensitive data.")
+        console.print("  For production, use AWS-LC, BoringSSL or OpenSSL 3.5+.")
         console.print()
-        console.print("  For production, use: AWS-LC, BoringSSL, or OpenSSL 3.5+")
+        console.print("[bold]Next step:[/bold] list the production-ready libraries")
+        console.print("  [cyan]pqc-bench libraries --production[/cyan]")
         console.print()
 
 
@@ -916,13 +940,13 @@ def _print_hybrid_mode(mode: HybridMode) -> None:
     tls = "[green]Yes[/green]" if mode.tls_support else "[yellow]Not yet[/yellow]"
     console.print(f"  [dim]TLS support:[/dim] {tls}")
 
-    if mode.ietf_draft:
-        console.print(f"  [dim]IETF reference:[/dim] {mode.ietf_draft}")
+    if mode.ietf_reference:
+        console.print(f"  [dim]IETF reference:[/dim] {mode.ietf_reference}")
 
     console.print(f"  [dim]Recommended until:[/dim] {mode.recommended_until}")
 
     if mode.libraries:
-        libs = [LIBRARIES.get(lib_id, type("", (), {"name": lib_id})).name for lib_id in mode.libraries]
+        libs = [lib.name if (lib := LIBRARIES.get(lib_id)) else lib_id for lib_id in mode.libraries]
         console.print(f"  [dim]Libraries:[/dim] {', '.join(libs)}")
 
     console.print()
@@ -1078,7 +1102,7 @@ def threat(
             from .data.threat_model import calculate_migration_deadline
             deadline = calculate_migration_deadline(profile.typical_lifespan_years)
             if deadline < 0:
-                deadline_str = f"[red]{abs(deadline)}y OVERDUE[/red]"
+                deadline_str = f"[red]{abs(deadline)}y overdue[/red]"
             elif deadline < 3:
                 deadline_str = f"[yellow]{deadline}y[/yellow]"
             else:
@@ -1125,7 +1149,7 @@ def threat(
         return
 
     # Detailed assessment for specific data type
-    assessment = assess_sndl_risk(data_type)
+    assessment = assess_sndl_risk(data_type) if data_type is not None else None
     if not assessment:
         console.print(Text.assemble("Unknown data type: ", _shown(str(data_type)), style="red"))
         console.print()
@@ -1168,6 +1192,11 @@ def threat(
     if assessment.recommended_algorithm:
         console.print(f"[bold]Recommended Algorithm:[/bold] {assessment.recommended_algorithm}")
     console.print()
+
+    if assessment.recommended_algorithm:
+        console.print(f"[bold]Next step:[/bold] find a library that implements {assessment.recommended_algorithm}")
+        console.print(f"  [cyan]pqc-bench libraries --algorithm {assessment.recommended_algorithm.lower()}[/cyan]")
+        console.print()
 
 
 @app.command()
@@ -1443,14 +1472,14 @@ def sector(
         table.add_column("Equipment\nLifecycle")
         table.add_column("Key Constraint")
 
-        for profile in SECTOR_PROFILES.values():
+        for listed in SECTOR_PROFILES.values():
             urgency_styles = {
                 MigrationUrgency.CRITICAL: "[red]CRITICAL[/red]",
                 MigrationUrgency.HIGH: "[yellow]HIGH[/yellow]",
                 MigrationUrgency.MEDIUM: "[blue]MEDIUM[/blue]",
                 MigrationUrgency.PLANNING: "[dim]PLANNING[/dim]",
             }
-            urgency_str = urgency_styles.get(profile.urgency, str(profile.urgency.value))
+            urgency_str = urgency_styles.get(listed.urgency, str(listed.urgency.value))
 
             sndl_styles = {
                 "extreme": "[red]EXTREME[/red]",
@@ -1458,15 +1487,15 @@ def sector(
                 "medium": "[blue]MEDIUM[/blue]",
                 "low": "[green]LOW[/green]",
             }
-            sndl_str = sndl_styles.get(profile.sndl_risk, profile.sndl_risk)
+            sndl_str = sndl_styles.get(listed.sndl_risk, listed.sndl_risk)
 
-            key_constraint = profile.constraints[0].name if profile.constraints else "-"
+            key_constraint = listed.constraints[0].name if listed.constraints else "-"
 
             table.add_row(
-                profile.name,
+                listed.name,
                 urgency_str,
                 sndl_str,
-                f"{profile.equipment_lifecycle_years}y",
+                f"{listed.equipment_lifecycle_years}y",
                 key_constraint,
             )
 

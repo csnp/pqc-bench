@@ -3,17 +3,17 @@
 import pytest
 
 from pqc_bench.data.libraries import (
-    LIBRARIES,
     HYBRID_MODES,
-    ProductionReadiness,
+    LIBRARIES,
     FIPSStatus,
+    ProductionReadiness,
+    get_hybrid_mode,
+    get_hybrid_modes_for_use_case,
+    get_libraries_for_algorithm,
+    get_libraries_with_fips,
     get_library,
     get_production_ready_libraries,
-    get_libraries_with_fips,
-    get_libraries_for_algorithm,
-    get_hybrid_mode,
     get_recommended_hybrid_for_kem,
-    get_hybrid_modes_for_use_case,
 )
 
 
@@ -108,6 +108,20 @@ class TestLibraryDatabase:
         assert liboqs is not None
         critical_caveats = [c for c in liboqs.caveats if c.severity == "critical"]
         assert len(critical_caveats) > 0
+
+    def test_wolfssl_has_no_pqc_fips_certificate(self) -> None:
+        """No wolfCrypt certificate lists ML-KEM, ML-DSA or SLH-DSA, so wolfSSL is not in the FIPS list."""
+        wolfssl = get_library("wolfssl")
+        assert wolfssl is not None
+        assert wolfssl.production_readiness == ProductionReadiness.PRODUCTION
+        assert wolfssl.fips_cert_number is None
+        assert wolfssl.fips_status == FIPSStatus.IN_PROCESS
+        assert wolfssl not in get_libraries_with_fips()
+        scope = [c.description for c in wolfssl.caveats if "#3389" in c.description]
+        assert scope == [
+            "FIPS 140-2 certificate #3389 (now historical) and FIPS 140-3 certificates #4718, #5041 and #5548 "
+            "cover the classical wolfCrypt module; none lists ML-KEM, ML-DSA or SLH-DSA"
+        ]
 
 
 class TestHybridModes:

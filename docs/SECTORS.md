@@ -302,7 +302,7 @@ pqc-bench sector healthcare
 |------------|-----------|--------|----------|
 | FDA 524B | FDA | Recommended | Ongoing |
 | HIPAA | HHS | No PQC yet | - |
-| NIST Deprecation | NIST | Mandatory | 2030 |
+| NIST IR 8547 | NIST | Mandatory | 2030-2035 (deprecated after 2030, disallowed after 2035) |
 
 ### Technical Constraints
 
@@ -362,7 +362,7 @@ pqc-bench sector financial
 | Regulation | Authority | Status | Deadline |
 |------------|-----------|--------|----------|
 | SWIFT CSP | SWIFT | Recommended | Ongoing |
-| DORA | EU | Recommended | 2025 |
+| DORA | EU | Recommended | No PQC date (applies from 17 January 2025) |
 | PCI-DSS 4.0 | PCI SSC | No PQC yet | - |
 | NSM-10 | US Gov | Mandatory | 2035 |
 
@@ -472,11 +472,13 @@ pqc-bench sector --deadlines
 
 | Year | Sector | Framework | Requirement |
 |------|--------|-----------|-------------|
-| **2025** | Financial | DORA | ICT risk mitigation |
-| **2030** | Healthcare | NIST | Classical crypto deprecated |
+| **2030** | Healthcare | NIST IR 8547 | Quantum-vulnerable public-key algorithms deprecated |
 | **2030** | Government | CNSA 2.0 | Exclusive PQC for software signing and networking equipment |
 | **2033** | Government | CNSA 2.0 | Exclusive PQC for browsers, servers, cloud and operating systems |
+| **2035** | Healthcare | NIST IR 8547 | Quantum-vulnerable public-key algorithms disallowed under NIST standards and guidelines |
 | **2035** | Federal | NSM-10 | Complete PQC migration |
+
+NIST IR 8547 is the final report published in October 2026. DORA (EU) applies from 17 January 2025 and sets no PQC date, so it has no row here.
 
 ---
 
@@ -488,7 +490,7 @@ pqc-bench sector --deadlines
 |--------|------------|
 | Space & Aerospace | No updates possible after launch |
 | Healthcare | 100-year data lifespan |
-| Financial | SNDL risk, DORA 2025 |
+| Financial | SNDL risk, network-wide coordination |
 
 ### HIGH - Start Within 12 Months
 

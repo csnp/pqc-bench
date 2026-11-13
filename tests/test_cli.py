@@ -1367,3 +1367,183 @@ def test_an_unknown_value_holding_an_emoji_code_is_shown_as_typed(
     assert result.exception is None or isinstance(result.exception, SystemExit)
     assert ":warning:" in result.output
     assert "⚠" not in result.output
+
+
+def _printed_lines(output: str) -> list[str]:
+    """The non-blank lines of the output, without their surrounding spaces."""
+    return [line.strip() for line in output.splitlines() if line.strip()]
+
+
+@pytest.mark.parametrize("data_type", list(threat_model.DATA_PROFILES))
+def test_threat_ends_with_a_next_step_command_that_runs(monkeypatch: pytest.MonkeyPatch, data_type: str) -> None:
+    """The assessment ends with the command to run next, and that command lists libraries."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["threat", "--data-type", data_type])
+    assert result.exit_code == 0
+    *_, step, command = _printed_lines(result.output)
+    assert step.startswith("Next step: ")
+    assert command.startswith("pqc-bench libraries --algorithm ")
+    follow = CliRunner().invoke(cli.app, shlex.split(command)[1:])
+    assert follow.exit_code == 0
+    assert "No libraries found" not in follow.output
+
+
+def test_threat_healthcare_states_the_facts_without_the_alarm_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No "CRITICAL: ... You are 87 years behind.": the 102, 15 and 87 years, then the next step."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["threat", "--data-type", "healthcare_records"])
+    assert result.exit_code == 0
+    assert "CRITICAL" not in result.output
+    assert "behind" not in result.output
+    lines = _printed_lines(result.output)
+    assert (
+        "Data needs 102 years of protection (a 100-year lifespan plus 2 years to migrate), and the quantum "
+        "threat is expected in 15 years, so the data outlives that window by 87 years."
+    ) in lines
+    assert lines[-2:] == [
+        "Next step: find a library that implements ML-KEM-768",
+        "pqc-bench libraries --algorithm ml-kem-768",
+    ]
+
+
+def test_threat_list_deadline_column_is_not_in_capitals(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Deadline column reads "87y overdue", not "87y OVERDUE"."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["threat", "--list"])
+    assert result.exit_code == 0
+    assert "OVERDUE" not in result.output
+    row = next(line for line in result.output.splitlines() if "Healthcare Records" in line)
+    assert [cell.strip() for cell in row.split("│")[1:-1]] == ["Healthcare Records", "100y", "CRITICAL", "87y overdue"]
+
+
+def test_libraries_states_the_liboqs_fact_and_the_next_step(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No "CRITICAL WARNING": liboqs is not production-ready, what its README says, and the command to run next."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries"])
+    assert result.exit_code == 0
+    assert "CRITICAL" not in result.output
+    assert "NOT" not in result.output
+    lines = _printed_lines(result.output)
+    assert "liboqs is not production-ready" in lines
+    assert lines[-2:] == ["Next step: list the production-ready libraries", "pqc-bench libraries --production"]
+    follow = CliRunner().invoke(cli.app, ["libraries", "--production"])
+    assert follow.exit_code == 0
+    assert "liboqs" not in follow.output
+
+
+def test_libraries_help_has_no_aside_about_developers() -> None:
+    """--help says liboqs is not production-ready and names --production, without "many developers ... unaware"."""
+    result = CliRunner().invoke(cli.app, ["libraries", "--help"])
+    assert result.exit_code == 0
+    text = " ".join(result.output.split())
+    assert "developers" not in text
+    assert "unaware" not in text
+    assert "NOT" not in text
+    assert "liboqs is a research library and is not production-ready" in text
+
+
+def _library_rows(output: str) -> dict[str, list[str]]:
+    """The cells of each library table row, by the library name in its first cell."""
+    rows = [[cell.strip() for cell in line.split("│")[1:-1]] for line in output.splitlines() if line.startswith("│")]
+    return {row[0]: row for row in rows if row and row[0]}
+
+
+def test_libraries_shows_no_fips_certificate_for_wolfssl_pqc(monkeypatch: pytest.MonkeyPatch) -> None:
+    """wolfSSL's #3389 is a FIPS 140-2 certificate that lists no PQC algorithm: the FIPS column reads No."""
+    _wide_console(monkeypatch)
+    listed = CliRunner().invoke(cli.app, ["libraries"])
+    assert listed.exit_code == 0
+    assert _library_rows(listed.output)["wolfSSL"][1:3] == ["Production", "No"]
+    assert "3389" not in listed.output
+    fips = CliRunner().invoke(cli.app, ["libraries", "--fips"])
+    assert fips.exit_code == 0
+    assert "wolfSSL" not in fips.output
+    assert "3389" not in fips.output
+
+
+@pytest.mark.parametrize("algorithm", sorted(ALGORITHMS))
+def test_explain_prints_no_quantum_security_bits(algorithm: str) -> None:
+    """explain shows no quantum security bit figure, a number with no cited source."""
+    result = CliRunner().invoke(cli.app, ["explain", algorithm])
+    assert result.exit_code == 0
+    assert "Quantum:" not in result.output
+    assert "NIST Level:" in result.output
+
+
+def test_recommend_json_security_has_no_quantum_bits() -> None:
+    """The security object of each --json recommendation has no quantum_bits field."""
+    result = CliRunner().invoke(cli.app, ["recommend", "TLS for a web server", "--json"])
+    assert result.exit_code == 0
+    recommendations = json.loads(result.output)["recommendations"]
+    assert recommendations
+    for rec in recommendations:
+        assert set(rec["security"]) == {"nist_level", "classical_bits", "constant_time"}
+
+
+# RFC 10024 (August 2026) defines X25519MLKEM768 and SecP384r1MLKEM1024 for TLS 1.3;
+# RFC 10073 (November 2026), published from draft-ietf-lamps-pq-composite-sigs, defines
+# the composite ML-DSA-44 + ECDSA P-256 and ML-DSA-65 + ECDSA P-384 signatures for X.509.
+HYBRID_IETF_REFERENCES = {
+    "x25519-mlkem768": "RFC 10024",
+    "secp384r1-mlkem1024": "RFC 10024",
+    "ecdsa-p256-mldsa44": "RFC 10073",
+    "ecdsa-p384-mldsa65": "RFC 10073",
+}
+
+
+def test_each_hybrid_mode_names_the_rfc_that_defines_it() -> None:
+    """The field is ietf_reference and holds the RFC: every hybrid mode's document is published."""
+    assert {mode_id: mode.ietf_reference for mode_id, mode in HYBRID_MODES.items()} == HYBRID_IETF_REFERENCES
+    assert not any(hasattr(mode, "ietf_draft") for mode in HYBRID_MODES.values())
+
+
+def test_hybrid_prints_the_rfc_of_each_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """hybrid prints "IETF reference: RFC 10024" for the KEM hybrids and RFC 10073 for the composite signatures."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["hybrid"])
+    assert result.exit_code == 0
+    references = [line for line in _printed_lines(result.output) if line.startswith("IETF reference:")]
+    assert references == [f"IETF reference: {HYBRID_IETF_REFERENCES[mode_id]}" for mode_id in HYBRID_MODES]
+
+
+def test_sector_deadlines_list_only_dated_pqc_requirements(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DORA sets no PQC date, so it has no row; the NIST row names IR 8547 and its 2030-2035 window."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["sector", "--deadlines"])
+    assert result.exit_code == 0
+    lines = [line for line in result.output.splitlines() if line.startswith("│")]
+    rows = [[cell.strip() for cell in line.split("│")[1:-1]] for line in lines]
+    assert rows[0] == ["Sector", "Framework", "Deadline"]
+    assert not any(row[1] == "DORA" for row in rows)
+    assert ["Healthcare & Medical Devices", "NIST IR 8547", "2030-2035"] in rows
+    assert ["Financial Services", "NSM-10", "2035"] in rows
+
+
+def test_sector_healthcare_cites_nist_ir_8547_for_its_dates(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The NIST entry names the final report and says what happens after 2030 and after 2035."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["sector", "healthcare"])
+    assert result.exit_code == 0
+    assert "NIST Deprecation" not in result.output
+    lines = _printed_lines(result.output)
+    start = lines.index("• NIST IR 8547 (NIST)")
+    assert lines[start + 1 : start + 4] == [
+        "PQC Requirement: MANDATORY",
+        "Deadline: 2030-2035",
+        "Quantum-vulnerable public-key algorithms are deprecated after 2030 and disallowed under NIST "
+        "standards and guidelines after 2035 (NIST IR 8547, final, October 2026)",
+    ]
+
+
+def test_sector_financial_says_dora_sets_no_pqc_date(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DORA shows no deadline line, and its note says when it applies and that it sets no PQC date."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["sector", "financial"])
+    assert result.exit_code == 0
+    lines = _printed_lines(result.output)
+    start = lines.index("• DORA (EU)")
+    assert lines[start + 1 : start + 3] == [
+        "PQC Requirement: RECOMMENDED",
+        "Digital Operational Resilience Act, applies from 17 January 2025: requires ICT risk mitigation "
+        "and sets no PQC date",
+    ]

@@ -325,6 +325,11 @@ class SNDLAssessment:
     recommended_hybrid: str | None = None
 
 
+def _years(count: int) -> str:
+    """``count`` years, in the singular for 1: "1 year", "15 years"."""
+    return f"{count} year" if count == 1 else f"{count} years"
+
+
 def assess_sndl_risk(
     data_profile_id: str,
     migration_timeline_years: int = 2,
@@ -345,22 +350,15 @@ def assess_sndl_risk(
     at_risk = required_protection > quantum_threat_years
 
     if at_risk:
-        if margin < -10:
-            explanation = (
-                f"CRITICAL: Data needs {required_protection} years of protection, "
-                f"but quantum threat expected in {quantum_threat_years} years. "
-                f"You are {abs(margin)} years behind."
-            )
-        else:
-            explanation = (
-                f"AT RISK: Data lifespan ({lifespan} years) + migration time "
-                f"({migration_timeline_years} years) exceeds quantum timeline "
-                f"({quantum_threat_years} years) by {abs(margin)} years."
-            )
+        explanation = (
+            f"Data needs {_years(required_protection)} of protection (a {lifespan}-year lifespan "
+            f"plus {_years(migration_timeline_years)} to migrate), and the quantum threat is expected "
+            f"in {_years(quantum_threat_years)}, so the data outlives that window by {_years(abs(margin))}."
+        )
     else:
         explanation = (
-            f"MANAGEABLE: {margin} years margin before quantum threat. "
-            f"Plan migration within {margin} years to maintain protection."
+            f"{_years(margin)} of margin before the quantum threat is expected. "
+            f"Plan the migration within {_years(margin)} to keep the data protected."
         )
 
     # Recommended algorithms based on needs
@@ -477,7 +475,7 @@ def calculate_migration_priority(
     # Calculate final score
     final_score = min(100, max(0, base_score + exposure_mod + volume_mod + complexity_mod))
 
-    factors = {
+    factors: dict[str, float] = {
         "base_urgency": base_score,
         "exposure_modifier": exposure_mod,
         "volume_modifier": volume_mod,
