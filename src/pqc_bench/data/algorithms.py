@@ -44,7 +44,6 @@ class SecurityProfile:
 
     nist_level: int
     classical_bits: int
-    quantum_bits: int
     properties: list[str]  # e.g., ["IND-CCA2"] or ["EUF-CMA"]
     constant_time: bool
     caveats: list[SecurityCaveat] = field(default_factory=list)
@@ -209,7 +208,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=1,
             classical_bits=128,
-            quantum_bits=118,
             properties=["IND-CCA2"],
             constant_time=True,
             caveats=[
@@ -301,7 +299,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=3,
             classical_bits=192,
-            quantum_bits=161,
             properties=["IND-CCA2"],
             constant_time=True,
             caveats=[],
@@ -405,7 +402,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=5,
             classical_bits=256,
-            quantum_bits=218,
             properties=["IND-CCA2"],
             constant_time=True,
             caveats=[
@@ -506,7 +502,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=2,
             classical_bits=128,
-            quantum_bits=118,
             properties=["EUF-CMA"],
             constant_time=True,
             caveats=[
@@ -601,7 +596,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=3,
             classical_bits=192,
-            quantum_bits=161,
             properties=["EUF-CMA"],
             constant_time=True,
             caveats=[],
@@ -695,7 +689,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=5,
             classical_bits=256,
-            quantum_bits=218,
             properties=["EUF-CMA"],
             constant_time=True,
             caveats=[
@@ -796,7 +789,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=1,
             classical_bits=128,
-            quantum_bits=103,
             properties=["EUF-CMA"],
             constant_time=False,
             caveats=[
@@ -891,7 +883,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=5,
             classical_bits=256,
-            quantum_bits=230,
             properties=["EUF-CMA"],
             constant_time=False,
             caveats=[
@@ -980,7 +971,6 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         security=SecurityProfile(
             nist_level=1,
             classical_bits=128,
-            quantum_bits=128,
             properties=["EUF-CMA"],
             constant_time=True,
             caveats=[
@@ -1051,6 +1041,18 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             "Consider for high-security, low-volume signing",
         ],
     ),
+}
+
+
+# FIPS 205 names of the SLH-DSA parameter sets that a compliance framework lists
+# by ID but that have no profile above. SLH-DSA-SHA2-128f (slh-dsa-128f) is the
+# only SLH-DSA set with a profile, so these sets cannot be explained or compared.
+UNPROFILED_ALGORITHM_NAMES: dict[str, str] = {
+    "slh-dsa-128s": "SLH-DSA-SHA2-128s",
+    "slh-dsa-192f": "SLH-DSA-SHA2-192f",
+    "slh-dsa-192s": "SLH-DSA-SHA2-192s",
+    "slh-dsa-256f": "SLH-DSA-SHA2-256f",
+    "slh-dsa-256s": "SLH-DSA-SHA2-256s",
 }
 
 

@@ -451,11 +451,13 @@ SECTOR_PROFILES: dict[str, SectorProfile] = {
                 notes="Requires 6+ year data retention; strong SNDL implications",
             ),
             RegulatoryFramework(
-                name="NIST Deprecation",
+                name="NIST IR 8547",
                 authority="NIST",
                 pqc_requirement="mandatory",
-                deadline="2030",
-                notes="Non-quantum-resistant crypto deprecated by 2030",
+                deadline="2030-2035",
+                notes="Quantum-vulnerable public-key algorithms are deprecated after 2030 and disallowed "
+                "under NIST standards and guidelines after 2035 (NIST IR 8547, final, October 2026)",
+                url="https://csrc.nist.gov/pubs/ir/8547/final",
             ),
         ],
         constraints=[
@@ -525,8 +527,9 @@ SECTOR_PROFILES: dict[str, SectorProfile] = {
                 name="DORA",
                 authority="EU",
                 pqc_requirement="recommended",
-                deadline="2025",
-                notes="Digital Operational Resilience Act - requires ICT risk mitigation",
+                deadline=None,
+                notes="Digital Operational Resilience Act, applies from 17 January 2025: "
+                "requires ICT risk mitigation and sets no PQC date",
             ),
             RegulatoryFramework(
                 name="PCI-DSS 4.0",

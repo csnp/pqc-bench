@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from ..core.constraints import Constraints
 from ..core.engine import NO_REQUIREMENT_NOTE, Recommendation, RecommendationResult, performance_figures
 from ..data.algorithms import AlgorithmProfile, PlatformPerformance
 
@@ -261,7 +262,7 @@ class TerminalOutput:
 
         return text
 
-    def _print_constraints(self, constraints) -> None:
+    def _print_constraints(self, constraints: Constraints) -> None:
         """Print parsed constraints."""
         if constraints.use_case:
             self.console.print(f"  • Use case:    {constraints.use_case.value}")
@@ -352,7 +353,6 @@ class TerminalOutput:
         print_rule(self.console, "─", 40)
         self.console.print(f"  NIST Level:    {algo.security.nist_level}")
         self.console.print(f"  Classical:     {algo.security.classical_bits}-bit")
-        self.console.print(f"  Quantum:       {algo.security.quantum_bits}-bit")
         self.console.print(f"  Properties:    {', '.join(algo.security.properties)}")
         self.console.print(
             f"  Constant-time: {'[green]Yes[/green]' if algo.security.constant_time else '[yellow]No[/yellow]'}"

@@ -251,9 +251,9 @@ class QueryParser:
 
         # Also check for implicit compliance based on context
         inferred = get_frameworks_for_context(query)
-        for framework in inferred:
+        for inferred_framework in inferred:
             try:
-                cf = ComplianceFramework(framework.id)
+                cf = ComplianceFramework(inferred_framework.id)
             except ValueError:
                 # Framework ID doesn't match enum value, skip
                 continue

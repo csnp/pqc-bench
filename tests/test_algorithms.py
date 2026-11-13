@@ -1,5 +1,6 @@
 """Tests for the algorithm database."""
 
+import dataclasses
 import re
 
 import pytest
@@ -9,9 +10,10 @@ from pqc_bench import cli
 from pqc_bench.data.algorithms import (
     ALGORITHMS,
     FrameworkApproval,
+    SecurityProfile,
     get_algorithm,
-    get_algorithms_by_type,
     get_algorithms_by_family,
+    get_algorithms_by_type,
     get_nist_standardized,
 )
 
@@ -132,7 +134,6 @@ class TestAlgorithmProfiles:
         # Security
         assert algo.security.nist_level in [1, 2, 3, 5]
         assert algo.security.classical_bits > 0
-        assert algo.security.quantum_bits > 0
         assert len(algo.security.properties) > 0
 
         # Sizes
@@ -197,6 +198,10 @@ class TestAlgorithmProfiles:
 
         assert ml_kem_512.security.nist_level < ml_kem_768.security.nist_level
         assert ml_kem_768.security.nist_level < ml_kem_1024.security.nist_level
+
+    def test_security_profile_has_no_quantum_bits(self) -> None:
+        """No quantum security bit figure is stored: none of the figures had a cited source."""
+        assert "quantum_bits" not in {profile_field.name for profile_field in dataclasses.fields(SecurityProfile)}
 
     def test_signature_sizes_are_populated(self) -> None:
         """Signature algorithms should have signature sizes."""

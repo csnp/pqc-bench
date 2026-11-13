@@ -1,12 +1,14 @@
 """Tests for the SNDL threat model module."""
 
+import re
+
 import pytest
 
 from pqc_bench.data.threat_model import (
     DATA_PROFILES,
     QUANTUM_THREAT_TIMELINE,
-    ThreatUrgency,
     DataClassification,
+    ThreatUrgency,
     assess_sndl_risk,
     calculate_migration_deadline,
     calculate_migration_priority,
@@ -111,6 +113,41 @@ class TestSNDLAssessment:
         assessment = assess_sndl_risk("healthcare_records")
         assert assessment is not None
         assert len(assessment.risk_explanation) > 0
+
+    def test_healthcare_explanation_keeps_the_numbers(self) -> None:
+        """102 years of protection, a threat expected in 15 years, and 87 years beyond that window."""
+        assessment = assess_sndl_risk("healthcare_records")
+        assert assessment is not None
+        assert assessment.risk_explanation == (
+            "Data needs 102 years of protection (a 100-year lifespan plus 2 years to migrate), "
+            "and the quantum threat is expected in 15 years, so the data outlives that window by 87 years."
+        )
+
+    @pytest.mark.parametrize("profile_id", list(DATA_PROFILES))
+    def test_explanation_has_no_alarm_words(self, profile_id: str) -> None:
+        """No word in capitals ("CRITICAL", "AT RISK") and no "You are ... years behind"."""
+        assessment = assess_sndl_risk(profile_id)
+        assert assessment is not None
+        assert not re.search(r"\b[A-Z]{2,}\b|behind", assessment.risk_explanation), assessment.risk_explanation
+
+    @pytest.mark.parametrize(
+        ("migration", "threat", "expected"),
+        [
+            (1, 1, "Data needs 2 years of protection (a 1-year lifespan plus 1 year to migrate), and the quantum "
+             "threat is expected in 1 year, so the data outlives that window by 1 year."),
+            (1, 3, "1 year of margin before the quantum threat is expected. "
+             "Plan the migration within 1 year to keep the data protected."),
+            (2, 15, "12 years of margin before the quantum threat is expected. "
+             "Plan the migration within 12 years to keep the data protected."),
+        ],
+    )
+    def test_explanation_counts_one_year_in_the_singular(self, migration: int, threat: int, expected: str) -> None:
+        """A count of 1 reads "1 year", others "N years"."""
+        assessment = assess_sndl_risk(
+            "authentication_credentials", migration_timeline_years=migration, quantum_threat_years=threat
+        )
+        assert assessment is not None
+        assert assessment.risk_explanation == expected
 
     def test_assessment_recommends_algorithm(self) -> None:
         """Assessment should recommend an algorithm."""

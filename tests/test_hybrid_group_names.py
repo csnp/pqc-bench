@@ -41,7 +41,7 @@ def test_recommended_kem_hybrid_is_x25519mlkem768() -> None:
     mode = get_recommended_hybrid_for_kem()
     assert mode.id == "x25519-mlkem768"
     assert mode.name == "X25519MLKEM768"
-    assert mode.ietf_draft == "RFC 10024"
+    assert mode.ietf_reference == "RFC 10024"
     assert mode.chrome_support is True
 
 

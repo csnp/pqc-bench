@@ -4,16 +4,15 @@ from dataclasses import replace
 
 import pytest
 
+from pqc_bench.core.constraints import (
+    ComplianceFramework,
+    Constraints,
+    SecurityLevel,
+    UseCase,
+)
 from pqc_bench.core.engine import RecommendationEngine
 from pqc_bench.core.parser import QueryParser
 from pqc_bench.data.algorithms import ALGORITHMS, AlgorithmProfile
-from pqc_bench.core.constraints import (
-    Constraints,
-    Platform,
-    UseCase,
-    SecurityLevel,
-    ComplianceFramework,
-)
 
 
 class TestRecommendationEngine:
@@ -134,7 +133,7 @@ class TestRecommendationEngine:
             needs_kem=True,  # No algorithm does both
         )
         result = engine.recommend(constraints)
-        # This might not be empty depending on how we handle needs_both
+        assert result.recommendations == []
 
     def test_recommend_ml_dsa_65_for_general_use(
         self, engine: RecommendationEngine

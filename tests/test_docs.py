@@ -118,6 +118,32 @@ def test_readme_libraries_sample_is_output_of_the_cli(monkeypatch: pytest.Monkey
         assert any(line == output for output in printed), f"README line not printed in this order: {line!r}"
 
 
+def test_readme_threat_sample_is_output_of_the_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each line of the README `threat` sample is printed by the CLI at 80 columns, in the same order."""
+    monkeypatch.setattr(cli, "console", Console(width=80, force_terminal=False))
+    command = "pqc-bench threat --data-type healthcare_records"
+    result = CliRunner().invoke(app, shlex.split(command)[1:])
+    assert result.exit_code == 0
+    printed = iter(line.rstrip() for line in result.output.splitlines())
+    sample = [line.rstrip() for line in _doc_sample(command) if line.strip() != "..."]
+    assert len(sample) > 5
+    for line in sample:
+        assert any(line == output for output in printed), f"README line not printed in this order: {line!r}"
+
+
+def test_contributing_guide_names_the_checks_pyproject_configures() -> None:
+    """docs/CONTRIBUTING.md names the test, lint and type checks that pyproject.toml configures."""
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    guide = (ROOT / "docs" / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    for section, command in [
+        ("[tool.pytest.ini_options]", "pytest"),
+        ("[tool.ruff]", "ruff check src/"),
+        ("[tool.mypy]", "mypy src"),
+    ]:
+        assert section in pyproject
+        assert any(line.split("#")[0].strip() == command for line in guide.splitlines()), command
+
+
 def test_user_guide_json_sample_is_output_of_the_cli() -> None:
     """The user guide's --json sample is the whole document the CLI prints for that command, line for line."""
     command = 'pqc-bench recommend "TLS 1.3 for nginx web server" --json --top 1'
