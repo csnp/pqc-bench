@@ -9,14 +9,16 @@ from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+import typer
 from rich.console import Console
 from typer.testing import CliRunner
 
-from pqc_bench import cli
+from pqc_bench import __version__, cli
 from pqc_bench.core.engine import RecommendationEngine
 from pqc_bench.core.parser import QueryParser
 from pqc_bench.data import threat_model
 from pqc_bench.data.algorithms import ALGORITHMS
+from pqc_bench.data.critical_infrastructure import SECTOR_PROFILES
 from pqc_bench.data.libraries import (
     HYBRID_KEM_USE_CASE_WORDS,
     HYBRID_MODES,
@@ -1027,3 +1029,213 @@ def test_recommend_footer_for_mobile_banking_compares_two_kems(monkeypatch: pyte
     [(first, second)] = _compare_commands(output)
     assert ALGORITHMS[first].is_kem
     assert ALGORITHMS[second].is_kem
+
+
+def _options_declaring(flag: str) -> dict[str, str | None]:
+    """The name of the option that ``flag`` stands for, by the command that declares it."""
+    group = typer.main.get_command(cli.app)
+    assert isinstance(group, typer.core.TyperGroup)
+    commands = {"pqc-bench": group, **{f"pqc-bench {name}": command for name, command in group.commands.items()}}
+    return {
+        where: param.name
+        for where, command in commands.items()
+        for param in command.params
+        if flag in (*param.opts, *param.secondary_opts)
+    }
+
+
+def test_v_stands_for_verbose_wherever_it_is_declared_and_capital_v_for_version() -> None:
+    """-v has one meaning, --verbose; the version option is -V."""
+    assert set(_options_declaring("-v").values()) == {"verbose"}
+    assert _options_declaring("-V") == {"pqc-bench": "version"}
+
+
+@pytest.mark.parametrize("flag", ["-V", "--version"])
+def test_the_version_options_print_the_version(flag: str) -> None:
+    result = CliRunner().invoke(cli.app, [flag])
+    assert result.exit_code == 0
+    assert result.output.strip() == f"pqc-bench {__version__}"
+
+
+@pytest.mark.parametrize("env", [{}, COLOUR_FORCED], ids=["plain", "colour"])
+def test_the_bare_command_prints_the_help_and_exits_0_as_help_does(env: dict[str, str | None]) -> None:
+    """pqc-bench with no arguments is not a usage error: it prints what --help prints."""
+    bare = CliRunner().invoke(cli.app, [], env=env)
+    with_help = CliRunner().invoke(cli.app, ["--help"], env=env)
+    assert with_help.exit_code == 0
+    assert bare.exit_code == 0
+    assert bare.output == with_help.output
+    assert "recommend" in _without_ansi(bare.output)
+
+
+def _error_words(output: str) -> str:
+    """The words of the output with ANSI escapes, panel borders and line breaks removed."""
+    return " ".join(_without_ansi(output).replace("│", " ").split())
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--list", "--data-type", "healthcare_records"],
+        ["--list", "--urgency", "critical"],
+        ["--data-type", "healthcare_records", "--urgency", "critical"],
+        ["--list", "--data-type", "healthcare_records", "--urgency", "critical"],
+    ],
+)
+@pytest.mark.parametrize("env", [{}, COLOUR_FORCED], ids=["plain", "colour"])
+def test_threat_rejects_two_views_at_once_and_names_the_options(
+    args: list[str], env: dict[str, str | None]
+) -> None:
+    """--list, --data-type and --urgency each choose a view, so a second one is not silently ignored."""
+    result = CliRunner().invoke(cli.app, ["threat", *args], env=env)
+    assert result.exit_code == 2
+    words = _error_words(result.output)
+    options = [arg for arg in args if arg.startswith("--")]
+    assert f"{', '.join(options[:-1])} and {options[-1]} cannot be used together" in words
+    assert "SNDL Threat Assessment" not in words
+
+
+def test_sector_list_at_80_columns_shows_every_sector_name_in_full(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A sector name wraps at a space in the Sector column instead of being cut short with an ellipsis."""
+    monkeypatch.setattr(cli, "console", Console(width=80, force_terminal=False))
+    result = CliRunner().invoke(cli.app, ["sector", "--list"])
+    assert result.exit_code == 0
+    column = " ".join(cell for cell in _table_rows(result.output) if cell)
+    assert "…" not in column
+    for profile in SECTOR_PROFILES.values():
+        assert profile.name in column
+
+
+@pytest.mark.parametrize("width", [30, 40, 60])
+def test_sector_list_on_a_narrow_console_cuts_no_sector_name_short(
+    monkeypatch: pytest.MonkeyPatch, width: int
+) -> None:
+    """Below 80 columns a name too long for the Sector column carries on onto the next line."""
+    monkeypatch.setattr(cli, "console", Console(width=width, force_terminal=False))
+    result = CliRunner().invoke(cli.app, ["sector", "--list"])
+    assert result.exit_code == 0
+    cells = _table_rows(result.output)
+    assert cells
+    assert not any("…" in cell for cell in cells)
+
+
+def test_sector_names_list_every_sector_profile_once_in_order() -> None:
+    assert list(cli.SECTOR_NAMES.values()) == list(SECTOR_PROFILES)
+
+
+def test_sector_list_unknown_sector_and_help_give_the_same_sector_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The --list footer, the unknown-sector error and the argument help name the same sectors, each of which runs."""
+    _wide_console(monkeypatch)
+    listed = CliRunner().invoke(cli.app, ["sector", "--list"])
+    assert listed.exit_code == 0
+    footer = re.search(r"Sector IDs: (.*)", listed.output)
+    assert footer is not None
+    names = footer.group(1).strip().split(", ")
+    unknown = CliRunner().invoke(cli.app, ["sector", "banana"])
+    assert unknown.exit_code == 1
+    assert re.findall(r"^  • (\S+)$", unknown.output, re.MULTILINE) == names
+    assert _option_help(cli.sector, "sector_name") == f"Sector to analyze ({', '.join(names)})"
+    for name in names:
+        assert CliRunner().invoke(cli.app, ["sector", name]).exit_code == 0, name
+
+
+def _performance_section(output: str) -> str:
+    """The Performance section of explain output, up to the Compliance heading."""
+    return output.split("\nPerformance\n", 1)[1].split("\nCompliance\n", 1)[0]
+
+
+@pytest.mark.parametrize("algorithm_id", sorted(ALGORITHMS))
+def test_explain_says_where_the_figures_of_each_platform_come_from(
+    monkeypatch: pytest.MonkeyPatch, algorithm_id: str
+) -> None:
+    """Under the Performance table, each platform's figures carry their recorded method or the label estimates."""
+    console = Console(width=300, force_terminal=False)
+    monkeypatch.setattr(cli, "console", console)
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(console))
+    result = CliRunner().invoke(cli.app, ["explain", algorithm_id])
+    assert result.exit_code == 0
+    section = _performance_section(result.output)
+    source_lines = [line.strip() for line in section.splitlines() if " figures: " in line]
+    for platform, perf in ALGORITHMS[algorithm_id].performance.items():
+        [line] = [
+            line
+            for line in source_lines
+            if platform in line.split(" figures: ")[0].replace(" and ", ", ").split(", ")
+        ]
+        method = perf.methodology
+        if method is None:
+            assert line.endswith(" figures: estimates, no benchmark methodology recorded")
+            continue
+        for detail in (
+            f"{method.library} {method.version} benchmark",
+            method.compiler,
+            method.cpu,
+            f"{method.iterations:,} iterations",
+            method.date,
+        ):
+            assert detail in line
+        assert method.source in [line.strip() for line in section.splitlines()]
+
+
+@pytest.mark.parametrize(
+    ("query", "platform"),
+    [
+        ("TLS for a web server", "x86_64_avx2"),
+        ("TLS on AWS Graviton", "arm64_neon"),
+        # No figures are recorded for embedded platforms, so the score uses the x86_64_avx2 ones.
+        ("embedded sensor with 256KB RAM", "x86_64_avx2"),
+    ],
+)
+def test_recommend_verbose_names_the_figures_its_performance_score_uses(
+    monkeypatch: pytest.MonkeyPatch, query: str, platform: str
+) -> None:
+    """The line under the Scoring Factors table names the platform whose figures give the Performance reason."""
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(Console(width=300, force_terminal=False)))
+    result = CliRunner().invoke(cli.app, ["recommend", query, "--verbose"])
+    assert result.exit_code == 0
+    [line] = [line.strip() for line in result.output.splitlines() if "Performance uses the " in line]
+    assert line.startswith(f"Performance uses the {platform} figures: ")
+    engine_result = RecommendationEngine().recommend(QueryParser().parse(query), query=query)
+    assert engine_result.primary is not None
+    algo = engine_result.primary.algorithm
+    perf = algo.performance[platform]
+    ops = perf.verify_ops if algo.is_signature else perf.decaps_ops
+    assert ops is not None
+    operation = "verify" if algo.is_signature else "decaps"
+    reason = re.search(r"^\s*Performance\s+\d+%\s+\d+\s+(\S.*?)\s*$", result.output, re.MULTILINE)
+    assert reason is not None
+    assert reason.group(1) == f"~{1000 / ops:.2f}ms {operation}"
+    if perf.methodology is None:
+        assert line.endswith("figures: estimates, no benchmark methodology recorded")
+    else:
+        assert f"{perf.methodology.library} {perf.methodology.version} benchmark" in line
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["explain", ":warning:"],
+        ["compare", ":warning:", "ml-kem-768"],
+        ["compare", "ml-kem-768", ":warning:"],
+        ["migrate", "--from", ":warning:"],
+        ["compliance", ":warning:"],
+        ["compliance", "fips-140-3", "--use-case", ":warning:"],
+        ["list", "--type", ":warning:"],
+        ["libraries", "--algorithm", ":warning:"],
+        ["hybrid", "--use-case", ":warning:"],
+        ["threat", "--urgency", ":warning:"],
+        ["threat", "--data-type", ":warning:"],
+        ["impact", ":warning:"],
+        ["sector", ":warning:"],
+    ],
+    ids=" ".join,
+)
+def test_an_unknown_value_holding_an_emoji_code_is_shown_as_typed(
+    monkeypatch: pytest.MonkeyPatch, args: list[str]
+) -> None:
+    """Rich would print the warning-sign emoji for :warning:; the message keeps the text the user typed."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert ":warning:" in result.output
+    assert "⚠" not in result.output

@@ -8,7 +8,7 @@ providing explanations for each recommendation.
 import re
 from dataclasses import dataclass, field
 
-from ..data.algorithms import ALGORITHMS, AlgorithmProfile
+from ..data.algorithms import ALGORITHMS, AlgorithmProfile, PlatformPerformance
 from ..data.compliance import get_framework
 from ..data.critical_infrastructure import SECTOR_PROFILES
 from ..data.crosswalk import get_crosswalk
@@ -34,6 +34,16 @@ DEFAULT_BASELINE = {"kem": "ML-KEM-768", "signature": "ML-DSA-65"}
 def _framework_id(name: str) -> str:
     """Normalize a framework name such as "FIPS 140-3" to its ID ("fips_140_3")."""
     return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+def performance_figures(algo: AlgorithmProfile, constraints: Constraints) -> PlatformPerformance | None:
+    """The figures that the performance score and its reason are computed from.
+
+    They are the figures for the platform in the constraints, or the x86_64_avx2
+    figures when there is no platform or the algorithm has no figures for it.
+    """
+    platform_key = constraints.platform.value if constraints.platform else "x86_64_avx2"
+    return algo.performance.get(platform_key) or algo.performance.get("x86_64_avx2")
 
 
 @dataclass
@@ -368,7 +378,7 @@ class RecommendationEngine:
 
         # Get platform-specific performance if available
         platform_key = constraints.platform.value if constraints.platform else "x86_64_avx2"
-        perf = algo.performance.get(platform_key) or algo.performance.get("x86_64_avx2")
+        perf = performance_figures(algo, constraints)
 
         if perf is None:
             return 50.0  # No data, neutral score
@@ -739,8 +749,7 @@ class RecommendationEngine:
 
     def _get_performance_reason(self, algo: AlgorithmProfile, constraints: Constraints) -> str:
         """Get performance-related reason string."""
-        platform_key = constraints.platform.value if constraints.platform else "x86_64_avx2"
-        perf = algo.performance.get(platform_key) or algo.performance.get("x86_64_avx2")
+        perf = performance_figures(algo, constraints)
 
         if perf is None:
             return "No benchmark data"

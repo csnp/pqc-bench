@@ -11,6 +11,7 @@ from typing import cast
 import typer
 from rich.console import Console
 from rich.markup import escape
+from rich.text import Text
 
 from . import __version__
 from .core.constraints import UseCase
@@ -49,12 +50,20 @@ from .output.terminal import TerminalOutput, print_rule
 app = typer.Typer(
     name="pqc-bench",
     help="Post-Quantum Cryptography Benchmarking and Recommendation Engine",
-    no_args_is_help=True,
     add_completion=False,
 )
 
 console = Console()
 terminal = TerminalOutput(console)
+
+
+def _print_as_typed(prefix: str, value: str, style: str = "red") -> None:
+    """Print ``prefix`` followed by ``value`` exactly as the user typed it.
+
+    In a string, Rich reads square brackets as markup and ``:name:`` codes as emoji.
+    A Text object is printed as it is, so the value keeps its brackets and colons.
+    """
+    console.print(Text(prefix + value, style=style))
 
 
 def version_callback(value: bool) -> None:
@@ -64,12 +73,13 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     version: bool | None = typer.Option(
         None,
         "--version",
-        "-v",
+        "-V",
         callback=version_callback,
         is_eager=True,
         help="Show version and exit.",
@@ -86,7 +96,12 @@ def main(
 
         pqc-bench explain ml-dsa-65
     """
-    pass
+    if ctx.invoked_subcommand is None:
+        # The bare command prints the help and exits 0, as --help does.
+        # no_args_is_help prints the help and exits 2, with click 8.3.1 and with the
+        # copy of click that typer 0.29.1 carries in place of the click package.
+        typer.echo(ctx.get_help(), color=ctx.color)
+        raise typer.Exit()
 
 
 def _require_query(query: str) -> str:
@@ -189,7 +204,7 @@ def explain(
             console.print()
             _print_hybrid_mode(mode)
             return
-        console.print(f"[red]Unknown algorithm: {escape(algorithm)}[/red]")
+        _print_as_typed("Unknown algorithm: ", algorithm)
         console.print()
         console.print("Available algorithms:")
         for algo_id in sorted(ALGORITHMS.keys()):
@@ -245,11 +260,11 @@ def compare(
     algo2 = get_algorithm(algorithm2)
 
     if algo1 is None:
-        console.print(f"[red]Unknown algorithm: {escape(algorithm1)}[/red]")
+        _print_as_typed("Unknown algorithm: ", algorithm1)
         raise typer.Exit(1)
 
     if algo2 is None:
-        console.print(f"[red]Unknown algorithm: {escape(algorithm2)}[/red]")
+        _print_as_typed("Unknown algorithm: ", algorithm2)
         raise typer.Exit(1)
 
     if algo1.id == algo2.id:
@@ -463,7 +478,7 @@ def migrate(
     }
 
     if from_lower not in migrations:
-        console.print(f"[red]Unknown classical algorithm: {escape(from_algo)}[/red]")
+        _print_as_typed("Unknown classical algorithm: ", from_algo)
         console.print()
         console.print("Supported classical algorithms:")
         for _key, val in migrations.items():
@@ -611,7 +626,7 @@ def compliance(
     fw = get_framework(framework)
 
     if fw is None:
-        console.print(f"[red]Unknown compliance framework: {escape(framework)}[/red]")
+        _print_as_typed("Unknown compliance framework: ", framework)
         console.print()
         console.print("Supported frameworks:")
         for fw_id, fw_data in COMPLIANCE_FRAMEWORKS.items():
@@ -623,7 +638,7 @@ def compliance(
     if use_case is not None:
         use_case_name = use_case.strip().lower().replace("_", "-").replace(" ", "-")
         if use_case_name not in COMPLIANCE_USE_CASES:
-            console.print(f"[red]Unknown use case: {escape(use_case)}[/red]")
+            _print_as_typed("Unknown use case: ", use_case)
             console.print()
             console.print("Accepted use cases:")
             for name, (needs_kem, needs_signature) in COMPLIANCE_USE_CASES.items():
@@ -735,7 +750,7 @@ def list_algorithms(
         # "kems" and "signatures" are accepted as well
         wanted_type = algorithm_type.strip().lower().removesuffix("s")
         if wanted_type not in ("kem", "signature"):
-            console.print(f"[red]Unknown algorithm type: {escape(algorithm_type)}[/red]")
+            _print_as_typed("Unknown algorithm type: ", algorithm_type)
             console.print("Valid types: kem, signature")
             raise typer.Exit(1)
 
@@ -824,7 +839,7 @@ def libraries(
     elif algorithm:
         libs = get_libraries_for_algorithm(algorithm)
         if not libs:
-            console.print(f"[yellow]No libraries found supporting {escape(algorithm)}[/yellow]")
+            _print_as_typed("No libraries found supporting ", algorithm, style="yellow")
             console.print()
             return
     else:
@@ -940,7 +955,7 @@ def hybrid(
     else:
         modes = get_hybrid_modes_for_use_case(use_case)
         if not modes:
-            console.print(f"[red]Unknown use case: {escape(use_case)}[/red]")
+            _print_as_typed("Unknown use case: ", use_case)
             console.print()
             console.print("Accepted use cases:")
             console.print(f"  • {', '.join(HYBRID_KEM_USE_CASE_WORDS)}: hybrid key exchange")
@@ -973,6 +988,7 @@ URGENCY_LEVELS = ", ".join(level.value for level in ThreatUrgency)
 
 @app.command()
 def threat(
+    ctx: typer.Context,
     data_type: str | None = typer.Option(
         None,
         "--data-type",
@@ -1009,6 +1025,24 @@ def threat(
     """
     from rich import box
     from rich.table import Table
+
+    # Each of these options chooses a different view: a second one is rejected, not ignored.
+    given = [
+        option
+        for option, is_given in (
+            ("--list", list_types),
+            ("--data-type", data_type is not None),
+            ("--urgency", urgency is not None),
+        )
+        if is_given
+    ]
+    if len(given) > 1:
+        # ctx.fail raises a usage error, which exits 2 and shows the command's usage line.
+        # The click package is not imported for it: typer 0.29.1 installs no click distribution.
+        ctx.fail(
+            f"{', '.join(given[:-1])} and {given[-1]} cannot be used together: "
+            "each one shows a different view. Use one of them."
+        )
 
     console.print()
     console.print("[bold]SNDL Threat Assessment[/bold]")
@@ -1065,7 +1099,7 @@ def threat(
         urgency_map = {level.value: level for level in ThreatUrgency}
         urg = urgency_map.get(urgency.lower())
         if urg is None:
-            console.print(f"[red]Unknown urgency level: {escape(urgency)}[/red]")
+            _print_as_typed("Unknown urgency level: ", urgency)
             console.print(f"Valid levels: {URGENCY_LEVELS}")
             raise typer.Exit(1)
 
@@ -1090,7 +1124,7 @@ def threat(
     # Detailed assessment for specific data type
     assessment = assess_sndl_risk(data_type)
     if not assessment:
-        console.print(f"[red]Unknown data type: {escape(str(data_type))}[/red]")
+        _print_as_typed("Unknown data type: ", str(data_type))
         console.print()
         console.print("Available data types:")
         for profile_id in DATA_PROFILES.keys():
@@ -1161,7 +1195,7 @@ def impact(
 
     algo = get_algorithm(algorithm)
     if not algo:
-        console.print(f"[red]Unknown algorithm: {escape(algorithm)}[/red]")
+        _print_as_typed("Unknown algorithm: ", algorithm)
         raise typer.Exit(1)
 
     console.print()
@@ -1281,11 +1315,49 @@ def impact(
             console.print()
 
 
+# The name that `sector --list` and the unknown-sector error give for each sector profile,
+# in the order of SECTOR_PROFILES.
+SECTOR_NAMES: dict[str, str] = {
+    "space": "space_aerospace",
+    "automotive": "automotive",
+    "industrial": "industrial_ot",
+    "energy": "energy_utilities",
+    "healthcare": "healthcare",
+    "financial": "financial",
+    "telecom": "telecommunications",
+}
+
+# Words that `sector` accepts for a sector, mapped to the sector's profile ID.
+# `sector` accepts a profile ID as well.
+SECTOR_ALIASES: dict[str, str] = {
+    **SECTOR_NAMES,
+    "aerospace": "space_aerospace",
+    "satellite": "space_aerospace",
+    "vehicle": "automotive",
+    "ev": "automotive",
+    "v2x": "automotive",
+    "ot": "industrial_ot",
+    "scada": "industrial_ot",
+    "ics": "industrial_ot",
+    "utilities": "energy_utilities",
+    "power": "energy_utilities",
+    "grid": "energy_utilities",
+    "medical": "healthcare",
+    "hospital": "healthcare",
+    "banking": "financial",
+    "finance": "financial",
+    "payments": "financial",
+    "telecommunications": "telecommunications",
+    "5g": "telecommunications",
+    "mobile": "telecommunications",
+}
+
+
 @app.command()
 def sector(
     sector_name: str | None = typer.Argument(
         None,
-        help="Sector to analyze (space, automotive, industrial, energy, healthcare, financial, telecom)",
+        help=f"Sector to analyze ({', '.join(SECTOR_NAMES)})",
     ),
     list_sectors: bool = typer.Option(
         False,
@@ -1359,10 +1431,13 @@ def sector(
         console.print()
 
         table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
-        table.add_column("Sector")
+        # A word longer than the column is broken onto the next line instead of cut short with "…".
+        table.add_column("Sector", overflow="fold")
         table.add_column("Urgency")
         table.add_column("SNDL Risk")
-        table.add_column("Equipment Lifecycle")
+        # The values are a few characters wide. With the header on two lines the column needs
+        # no more width than "Equipment", which leaves room for "Telecommunications" at 80 columns.
+        table.add_column("Equipment\nLifecycle")
         table.add_column("Key Constraint")
 
         for profile in SECTOR_PROFILES.values():
@@ -1395,49 +1470,19 @@ def sector(
         console.print(table)
         console.print()
         console.print("[dim]Run: pqc-bench sector <sector_id> for detailed guidance[/dim]")
-        console.print("[dim]Sector IDs: space, automotive, industrial, energy, healthcare, financial, telecom[/dim]")
+        console.print(f"[dim]Sector IDs: {', '.join(SECTOR_NAMES)}[/dim]")
         console.print()
         return
 
-    # Map short names to sector IDs
-    sector_map = {
-        "space": "space_aerospace",
-        "aerospace": "space_aerospace",
-        "satellite": "space_aerospace",
-        "automotive": "automotive",
-        "vehicle": "automotive",
-        "ev": "automotive",
-        "v2x": "automotive",
-        "industrial": "industrial_ot",
-        "ot": "industrial_ot",
-        "scada": "industrial_ot",
-        "ics": "industrial_ot",
-        "energy": "energy_utilities",
-        "utilities": "energy_utilities",
-        "power": "energy_utilities",
-        "grid": "energy_utilities",
-        "healthcare": "healthcare",
-        "medical": "healthcare",
-        "hospital": "healthcare",
-        "financial": "financial",
-        "banking": "financial",
-        "finance": "financial",
-        "payments": "financial",
-        "telecom": "telecommunications",
-        "telecommunications": "telecommunications",
-        "5g": "telecommunications",
-        "mobile": "telecommunications",
-    }
-
-    sector_id = sector_map.get(sector_name.lower(), sector_name.lower())
+    sector_id = SECTOR_ALIASES.get(sector_name.lower(), sector_name.lower())
     profile = get_sector_profile(sector_id)
 
     if not profile:
-        console.print(f"[red]Unknown sector: {escape(sector_name)}[/red]")
+        _print_as_typed("Unknown sector: ", sector_name)
         console.print()
         console.print("Available sectors:")
-        for sid in SECTOR_PROFILES.keys():
-            console.print(f"  • {sid}")
+        for name in SECTOR_NAMES:
+            console.print(f"  • {name}")
         raise typer.Exit(1)
 
     # Header
