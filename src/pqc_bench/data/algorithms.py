@@ -1078,6 +1078,15 @@ def get_algorithm(algorithm_id: str) -> AlgorithmProfile | None:
     return ALGORITHMS[known_id] if known_id is not None else None
 
 
+def get_unprofiled_algorithm_id(name: str) -> str | None:
+    """The ID of an unprofiled algorithm given by ID or FIPS 205 name ("slh-dsa-128s" or "SLH-DSA-SHA2-128s")."""
+    key = _name_key(name)
+    for algo_id, fips_name in UNPROFILED_ALGORITHM_NAMES.items():
+        if key in (_name_key(algo_id), _name_key(fips_name)):
+            return algo_id
+    return None
+
+
 def get_algorithms_by_type(algorithm_type: str) -> list[AlgorithmProfile]:
     """Get all algorithms of a given type (kem or signature)."""
     return [a for a in ALGORITHMS.values() if a.algorithm_type == algorithm_type]

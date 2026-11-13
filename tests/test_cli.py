@@ -21,13 +21,14 @@ from pqc_bench import __version__, cli
 from pqc_bench.core.engine import RecommendationEngine
 from pqc_bench.core.parser import QueryParser
 from pqc_bench.data import threat_model
-from pqc_bench.data.algorithms import ALGORITHMS
+from pqc_bench.data.algorithms import ALGORITHMS, UNPROFILED_ALGORITHM_NAMES
 from pqc_bench.data.critical_infrastructure import SECTOR_PROFILES
 from pqc_bench.data.libraries import (
     HYBRID_KEM_USE_CASE_WORDS,
     HYBRID_MODES,
     HYBRID_SIGNATURE_USE_CASE_WORDS,
     LIBRARIES,
+    get_libraries_for_algorithm,
 )
 from pqc_bench.data.threat_model import ThreatUrgency, get_profiles_by_urgency
 from pqc_bench.output.terminal import TerminalOutput, print_rule
@@ -253,7 +254,7 @@ def test_user_guide_names_every_accepted_compliance_use_case() -> None:
         (["compare", "ml-kem-768", "[/bold]"], "[/bold]", 1),
         (["migrate", "--from", "[/red]"], "[/red]", 1),
         (["compliance", "[red]zzz[/red]"], "[red]zzz[/red]", 1),
-        (["libraries", "--algorithm", "[/bold]"], "[/bold]", 0),
+        (["libraries", "--algorithm", "[/bold]"], "[/bold]", 1),
         (["threat", "--urgency", "[/red]"], "[/red]", 1),
         (["threat", "--data-type", "[/red]"], "[/red]", 1),
         (["impact", "[/bold]"], "[/bold]", 1),
@@ -996,6 +997,58 @@ def test_libraries_algorithm_lists_the_falcon_libraries(monkeypatch: pytest.Monk
     assert result.exit_code == 0
     assert "No libraries found" not in result.output
     assert "liboqs (Open Quantum Safe)" in result.output
+
+
+def _listed_ids(output: str) -> list[str]:
+    """The text after the bullet of each "  • <id>" line of the output, in order."""
+    return [line.removeprefix("• ") for line in _printed_lines(output) if line.startswith("• ")]
+
+
+@pytest.mark.parametrize("algorithm", ["nonsense", "ml-kem-999", "kyber", "[/bold]", ":warning:"])
+def test_libraries_unknown_algorithm_exits_1_and_names_the_valid_ids(
+    monkeypatch: pytest.MonkeyPatch, algorithm: str
+) -> None:
+    """A value that names no algorithm exits 1, as explain does, and lists the IDs --algorithm finds libraries for."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algorithm])
+    assert result.exit_code == 1
+    assert f"Unknown algorithm: {algorithm}" in _printed_lines(result.output)
+    assert "Available algorithms:" in _printed_lines(result.output)
+    assert "No libraries found" not in result.output
+    assert "Notable Users" not in result.output
+    known_ids = {*ALGORITHMS, *UNPROFILED_ALGORITHM_NAMES}
+    assert _listed_ids(result.output) == sorted(
+        algo_id for algo_id in known_ids if get_libraries_for_algorithm(algo_id)
+    )
+
+
+def test_libraries_every_id_listed_for_an_unknown_algorithm_finds_libraries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each ID listed after "Unknown algorithm" prints the library table when given to --algorithm."""
+    _wide_console(monkeypatch)
+    listed = _listed_ids(CliRunner().invoke(cli.app, ["libraries", "--algorithm", "nonsense"]).output)
+    assert "ml-kem-768" in listed
+    assert "slh-dsa-128s" in listed
+    for algo_id in listed:
+        result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algo_id])
+        assert result.exit_code == 0, algo_id
+        assert "No libraries found" not in result.output, algo_id
+        assert "Notable Users" in result.output, algo_id
+
+
+@pytest.mark.parametrize(
+    "algorithm", ["ml-kem-768", "Kyber768", "slh-dsa-128s", "SLH-DSA-SHA2-128s", "X25519MLKEM768"]
+)
+def test_libraries_known_algorithm_with_no_library_is_not_called_unknown(
+    monkeypatch: pytest.MonkeyPatch, algorithm: str
+) -> None:
+    """A name the data knows (an algorithm, an unprofiled SLH-DSA set or a hybrid mode) that finds no
+    library prints "No libraries found" and exits 0."""
+    _wide_console(monkeypatch)
+    monkeypatch.setattr(cli, "get_libraries_for_algorithm", lambda _algorithm: [])
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algorithm])
+    assert result.exit_code == 0
+    assert "Unknown algorithm" not in result.output
+    assert f"No libraries found supporting {algorithm}" in _printed_lines(result.output)
 
 
 @pytest.mark.parametrize("algorithm", ["ml-dsa-44", "ml-dsa-65", "ml-dsa-87", "Dilithium3"])

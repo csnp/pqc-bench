@@ -16,7 +16,13 @@ from . import __version__
 from .core.constraints import UseCase
 from .core.engine import RecommendationEngine
 from .core.parser import QueryParser
-from .data.algorithms import ALGORITHMS, UNPROFILED_ALGORITHM_NAMES, AlgorithmProfile, get_algorithm
+from .data.algorithms import (
+    ALGORITHMS,
+    UNPROFILED_ALGORITHM_NAMES,
+    AlgorithmProfile,
+    get_algorithm,
+    get_unprofiled_algorithm_id,
+)
 from .data.compliance import COMPLIANCE_FRAMEWORKS, get_framework
 from .data.libraries import (
     ALGORITHM_FAMILY_NAMES,
@@ -851,6 +857,25 @@ def _fips_column_note(family: str | None, shows_unrecorded: bool) -> str:
     )
 
 
+def _names_known_algorithm(value: str) -> bool:
+    """Whether ``value`` names an algorithm or hybrid mode this tool has data for.
+
+    That is a profiled algorithm by ID, NIST name or legacy name, an unprofiled algorithm by ID or
+    FIPS 205 name, or a hybrid mode by ID or name.
+    """
+    return (
+        get_algorithm(value) is not None
+        or get_unprofiled_algorithm_id(value) is not None
+        or get_hybrid_mode(value) is not None
+    )
+
+
+def _library_algorithm_ids() -> list[str]:
+    """The algorithm IDs, profiled and unprofiled, that libraries --algorithm finds a library for, sorted."""
+    algo_ids = {*ALGORITHMS, *UNPROFILED_ALGORITHM_NAMES}
+    return sorted(algo_id for algo_id in algo_ids if get_libraries_for_algorithm(algo_id))
+
+
 @app.command()
 def libraries(
     production_only: bool = typer.Option(
@@ -904,6 +929,13 @@ def libraries(
         libs = get_production_ready_libraries()
     elif algorithm:
         libs = get_libraries_for_algorithm(algorithm)
+        if not libs and not _names_known_algorithm(algorithm):
+            console.print(Text.assemble("Unknown algorithm: ", _shown(algorithm), style="red"))
+            console.print()
+            console.print("Available algorithms:")
+            for algo_id in _library_algorithm_ids():
+                console.print(f"  • {algo_id}")
+            raise typer.Exit(1)
         if not libs:
             console.print(Text.assemble("No libraries found supporting ", _shown(algorithm), style="yellow"))
             console.print()
