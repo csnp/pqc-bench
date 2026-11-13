@@ -96,17 +96,27 @@ class TLSHandshakeImpact:
     comparison_baseline: str = "ECDSA P-256 + X25519"
 
 
-def calculate_tls_kem_impact(kem_algorithm_id: str) -> TLSHandshakeImpact | None:
-    """Calculate TLS handshake impact for a KEM algorithm."""
+def calculate_tls_kem_impact(
+    kem_algorithm_id: str,
+    *,
+    baseline_name: str = "X25519",
+    baseline_key_share: int = CLASSICAL_SIZES["x25519"].public_key,
+) -> TLSHandshakeImpact | None:
+    """Calculate TLS handshake impact for a KEM algorithm.
+
+    The baseline is the classical key exchange the KEM replaces, X25519 unless
+    another is named. Its client and server each send a key share of
+    ``baseline_key_share`` bytes; give ``baseline_name`` with it so that
+    ``comparison_baseline`` names the key exchange the figures are measured against.
+    """
     algo = get_algorithm(kem_algorithm_id)
     if algo is None or not algo.is_kem:
         return None
 
-    x25519 = CLASSICAL_SIZES["x25519"]
-
-    # KEM adds public key in ClientHello, ciphertext in ServerHello
-    client_delta = algo.sizes.public_key - x25519.public_key
-    server_delta = (algo.sizes.ciphertext or 0) - x25519.public_key
+    # The KEM public key replaces the client's key share in the ClientHello,
+    # and the ciphertext replaces the server's key share in the ServerHello.
+    client_delta = algo.sizes.public_key - baseline_key_share
+    server_delta = (algo.sizes.ciphertext or 0) - baseline_key_share
 
     total = client_delta + server_delta
 
@@ -148,6 +158,7 @@ def calculate_tls_kem_impact(kem_algorithm_id: str) -> TLSHandshakeImpact | None
         packet_fragmentation_risk=frag_risk,
         middlebox_compatibility=middlebox,
         known_issues=issues,
+        comparison_baseline=f"ECDSA P-256 + {baseline_name}",
     )
 
 

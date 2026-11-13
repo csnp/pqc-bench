@@ -52,6 +52,24 @@ class TestTLSKEMImpact:
         assert impact.server_hello_delta > 0
         assert impact.total_handshake_delta > 0
 
+    def test_kem_impact_of_ml_kem_768_against_x25519(self) -> None:
+        """The FIPS 203 sizes (public key 1,184, ciphertext 1,088) less the 32-byte X25519 key share."""
+        impact = calculate_tls_kem_impact("ml-kem-768")
+        assert impact is not None
+        assert impact.client_hello_delta == 1152
+        assert impact.server_hello_delta == 1056
+        assert impact.total_handshake_delta == 2208
+        assert impact.comparison_baseline == "ECDSA P-256 + X25519"
+
+    def test_kem_impact_against_another_key_exchange(self) -> None:
+        """A 64-byte key share is taken from both directions, and the baseline names its key exchange."""
+        impact = calculate_tls_kem_impact("ml-kem-768", baseline_name="ECDH P-256", baseline_key_share=64)
+        assert impact is not None
+        assert impact.client_hello_delta == 1120
+        assert impact.server_hello_delta == 1024
+        assert impact.total_handshake_delta == 2144
+        assert impact.comparison_baseline == "ECDSA P-256 + ECDH P-256"
+
     def test_kem_impact_assesses_fragmentation(self) -> None:
         """KEM impact should assess fragmentation risk."""
         impact = calculate_tls_kem_impact("ml-kem-768")
