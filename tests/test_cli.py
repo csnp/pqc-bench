@@ -1636,6 +1636,27 @@ def test_libraries_states_the_liboqs_fact_and_the_next_step(monkeypatch: pytest.
     assert "liboqs" not in follow.output
 
 
+@pytest.mark.parametrize(
+    ("value", "lists_liboqs"),
+    [(spelling, False) for mode in HYBRID_MODES.values() for spelling in (mode.id, mode.name)] + [("ml-kem-768", True)],
+)
+def test_libraries_algorithm_prints_the_liboqs_note_only_under_a_table_with_liboqs(
+    monkeypatch: pytest.MonkeyPatch, value: str, lists_liboqs: bool
+) -> None:
+    """The liboqs note and its --production next step follow a table only when liboqs is one of its rows.
+
+    `libraries --algorithm X25519MLKEM768` listed AWS-LC, BoringSSL, OpenSSL 3.5+ and wolfSSL and then
+    printed "liboqs is not production-ready" and `pqc-bench libraries --production`.
+    """
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", value])
+    assert result.exit_code == 0
+    assert (LIBRARIES["liboqs"].name in _library_rows(result.output)) is lists_liboqs
+    lines = _printed_lines(result.output)
+    assert ("liboqs is not production-ready" in lines) is lists_liboqs
+    assert ("pqc-bench libraries --production" in lines) is lists_liboqs
+
+
 def test_libraries_help_has_no_aside_about_developers() -> None:
     """--help says liboqs is not production-ready and names --production, without "many developers ... unaware"."""
     result = CliRunner().invoke(cli.app, ["libraries", "--help"])
