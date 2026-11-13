@@ -612,7 +612,13 @@ def get_libraries_with_fips() -> list[LibraryProfile]:
     ]
 
 
-_ALGORITHM_SUPPORT_FIELDS = frozenset(support_field.name for support_field in fields(AlgorithmSupport))
+# The AlgorithmSupport fields that hold the parameter sets of an algorithm family ("768" for
+# ml-kem-768). hybrid_kem and hybrid_sig hold TLS group and hybrid signature names instead; a
+# hybrid mode is looked up by its ID or name with get_hybrid_mode.
+_PARAMETER_SET_FIELDS = frozenset(support_field.name for support_field in fields(AlgorithmSupport)) - {
+    "hybrid_kem",
+    "hybrid_sig",
+}
 
 # The name text gives the algorithm family of each AlgorithmSupport field.
 ALGORITHM_FAMILY_NAMES: dict[str, str] = {
@@ -629,7 +635,8 @@ def _family_and_variant(algorithm_id: str) -> tuple[str, str] | None:
     """The AlgorithmSupport field and variant of an algorithm given by ID, NIST name or legacy name.
 
     An SLH-DSA set with no algorithm profile is given by ID or FIPS 205 name ("slh-dsa-128s" or
-    "SLH-DSA-SHA2-128s"). None for a value that names no AlgorithmSupport field.
+    "SLH-DSA-SHA2-128s"). None for a value that names no field of _PARAMETER_SET_FIELDS, such as a
+    hybrid mode.
     """
     algo = get_algorithm(algorithm_id)
     if algo is not None:
@@ -641,7 +648,7 @@ def _family_and_variant(algorithm_id: str) -> tuple[str, str] | None:
     # Split the ID into an AlgorithmSupport field and a variant:
     # "ml-kem-768" -> "ml_kem", "768" and "falcon-512" -> "falcon", "512"
     family, _, variant = algorithm_id.lower().replace("-", "_").rpartition("_")
-    if family not in _ALGORITHM_SUPPORT_FIELDS:
+    if family not in _PARAMETER_SET_FIELDS:
         return None
     return family, variant
 
@@ -650,7 +657,8 @@ def get_algorithm_family(algorithm_id: str) -> str | None:
     """The AlgorithmSupport field of an algorithm given by ID, NIST name or legacy name.
 
     "ml-dsa-65", "ML-DSA-65" and "Dilithium3" give "ml_dsa", and "SLH-DSA-SHA2-128s" gives "slh_dsa".
-    None for a value that names no AlgorithmSupport field.
+    None for a value that names no field of _PARAMETER_SET_FIELDS, such as the hybrid mode
+    "X25519MLKEM768".
     """
     family_and_variant = _family_and_variant(algorithm_id)
     return None if family_and_variant is None else family_and_variant[0]
@@ -669,13 +677,19 @@ def get_fips_certificate_for_family(library: LibraryProfile, family: str) -> str
 
 
 def get_libraries_for_algorithm(algorithm_id: str) -> list[LibraryProfile]:
-    """Get libraries that support an algorithm, given by ID, NIST name or legacy name.
+    """Get libraries that support an algorithm, given by ID, NIST name or legacy name, or a hybrid mode.
 
     An SLH-DSA set with no algorithm profile is given by ID or FIPS 205 name.
+
+    A hybrid mode, given by ID or name ("x25519-mlkem768" or "X25519MLKEM768"), finds the libraries
+    its HybridMode.libraries names, the list explain and hybrid print, in LIBRARIES order.
     """
     family_and_variant = _family_and_variant(algorithm_id)
     if family_and_variant is None:
-        return []
+        mode = get_hybrid_mode(algorithm_id)
+        if mode is None:
+            return []
+        return [lib for lib in LIBRARIES.values() if lib.id in mode.libraries]
     family, variant = family_and_variant
 
     result = []

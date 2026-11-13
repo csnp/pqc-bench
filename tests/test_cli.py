@@ -1100,6 +1100,93 @@ def test_libraries_algorithm_shows_the_aws_lc_certificate_for_ml_kem(
     assert "FIPS certificate #" not in result.output
 
 
+def _explained_libraries(value: str) -> list[str]:
+    """The library names on the "Libraries:" line that explain prints for a hybrid mode."""
+    result = CliRunner().invoke(cli.app, ["explain", value])
+    assert result.exit_code == 0, result.output
+    line = next(line for line in _printed_lines(result.output) if line.startswith("Libraries: "))
+    return line.removeprefix("Libraries: ").split(", ")
+
+
+@pytest.mark.parametrize(
+    "value",
+    [spelling for mode in HYBRID_MODES.values() for spelling in (mode.id, mode.name)],
+)
+def test_libraries_algorithm_lists_the_libraries_explain_names_for_a_hybrid_mode(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    """A hybrid mode's ID or name lists the libraries explain prints for it.
+
+    `libraries --algorithm X25519MLKEM768` printed "No libraries found supporting X25519MLKEM768" and
+    exited 0, while `explain X25519MLKEM768` named BoringSSL, AWS-LC, OpenSSL 3.5+ and wolfSSL.
+    """
+    _wide_console(monkeypatch)
+    named = _explained_libraries(value)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", value])
+    assert result.exit_code == 0
+    assert "No libraries found" not in result.output
+    assert "Unknown algorithm" not in result.output
+    rows = [name for name in _library_rows(result.output) if name != "Library"]
+    assert sorted(rows) == sorted(named)
+
+
+@pytest.mark.parametrize(
+    ("algorithm", "rows"),
+    [
+        ("X25519MLKEM768", ["AWS-LC (AWS Libcrypto)", "BoringSSL", "OpenSSL 3.5+", "wolfSSL"]),
+        ("x25519-mlkem768", ["AWS-LC (AWS Libcrypto)", "BoringSSL", "OpenSSL 3.5+", "wolfSSL"]),
+        ("SecP384r1MLKEM1024", ["OpenSSL 3.5+", "wolfSSL"]),
+    ],
+)
+def test_libraries_algorithm_lists_the_hybrid_kem_libraries(
+    monkeypatch: pytest.MonkeyPatch, algorithm: str, rows: list[str]
+) -> None:
+    """The hybrid KEM table lists the libraries whose profile lists the group, in table order.
+
+    Its FIPS column counts ML-KEM, the post-quantum algorithm of the group: AWS-LC shows #5298, which
+    lists ML-KEM.
+    """
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algorithm])
+    assert result.exit_code == 0
+    table = _library_rows(result.output)
+    assert [name for name in table if name != "Library"] == rows
+    if "AWS-LC (AWS Libcrypto)" in rows:
+        assert table["AWS-LC (AWS Libcrypto)"][1:3] == ["Production", "#5298"]
+    assert "FIPS certificate #" not in result.output
+    text = " ".join(result.output.split())
+    assert (
+        "FIPS here means a FIPS 140-3 certificate that lists ML-KEM; a library can hold FIPS 140-3 "
+        "certificates that do not list ML-KEM and still show No."
+    ) in text
+
+
+@pytest.mark.parametrize("algorithm", ["ecdsa-p256-mldsa44", "ECDSA P-384 + ML-DSA-65"])
+def test_libraries_algorithm_fips_column_of_a_composite_signature_counts_ml_dsa(
+    monkeypatch: pytest.MonkeyPatch, algorithm: str
+) -> None:
+    """A composite ML-DSA signature lists AWS-LC with FIPS No: #5298 lists ML-KEM, not ML-DSA."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algorithm])
+    assert result.exit_code == 0
+    table = _library_rows(result.output)
+    assert [name for name in table if name != "Library"] == ["AWS-LC (AWS Libcrypto)"]
+    assert table["AWS-LC (AWS Libcrypto)"][1:3] == ["Production", "No"]
+    assert "AWS-LC (AWS Libcrypto): FIPS certificate #5298 lists ML-KEM, not ML-DSA." in _printed_lines(result.output)
+    text = " ".join(result.output.split())
+    assert "FIPS here means a FIPS 140-3 certificate that lists ML-DSA;" in text
+
+
+def test_libraries_fips_and_a_hybrid_kem_list_aws_lc(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--fips --algorithm X25519MLKEM768 lists AWS-LC, the one library of the group --fips lists, with #5298."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--fips", "--algorithm", "X25519MLKEM768"])
+    assert result.exit_code == 0
+    rows = _library_rows(result.output)
+    assert [name for name in rows if name != "Library"] == ["AWS-LC (AWS Libcrypto)"]
+    assert rows["AWS-LC (AWS Libcrypto)"][1:3] == ["Production", "#5298"]
+
+
 COMPARE_COMMAND = re.compile(r"pqc-bench compare (\S+) (\S+)")
 
 

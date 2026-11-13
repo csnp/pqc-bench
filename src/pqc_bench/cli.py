@@ -839,10 +839,11 @@ def _certificate_leaves_out(lib: LibraryProfile, family: str) -> Text:
 def _fips_column_note(family: str | None, shows_unrecorded: bool) -> str:
     """The line under the libraries table that says which certificates the FIPS column shows.
 
-    ``family`` is the AlgorithmSupport field of --algorithm, or None when --algorithm does not
-    filter the table. ``shows_unrecorded`` is true when the column shows a certificate whose
-    algorithm families are not recorded, which it shows for every family. The text holds no
-    markup: the family name comes from ALGORITHM_FAMILY_NAMES, not from the command line.
+    ``family`` is the AlgorithmSupport field the column counts under --algorithm (for a hybrid mode,
+    that of its post-quantum algorithm), or None when --algorithm does not filter the table.
+    ``shows_unrecorded`` is true when the column shows a certificate whose algorithm families are
+    not recorded, which it shows for every family. The text holds no markup: the family name comes
+    from ALGORITHM_FAMILY_NAMES, not from the command line.
     """
     if family is None:
         return (
@@ -912,7 +913,7 @@ def libraries(
         None,
         "--algorithm",
         "-a",
-        help="Show libraries supporting a specific algorithm",
+        help="Show libraries supporting a specific algorithm or hybrid mode",
     ),
 ) -> None:
     """
@@ -934,6 +935,8 @@ def libraries(
 
         pqc-bench libraries --algorithm ml-kem-768
 
+        pqc-bench libraries --algorithm X25519MLKEM768
+
         pqc-bench libraries --production --algorithm ml-kem-768
     """
     from rich import box
@@ -946,7 +949,9 @@ def libraries(
 
     # Filter libraries. Each option given keeps only the libraries that pass it, so a call that
     # combines options lists the libraries that pass all of them.
-    family: str | None = None  # the AlgorithmSupport field of --algorithm, when it filters the table
+    # The AlgorithmSupport field the FIPS column counts when --algorithm filters the table: that of
+    # the algorithm, or for a hybrid mode that of its post-quantum algorithm.
+    family: str | None = None
     libs = list(LIBRARIES.values())
     if algorithm:
         libs = get_libraries_for_algorithm(algorithm)
@@ -963,6 +968,9 @@ def libraries(
             console.print()
             return
         family = get_algorithm_family(algorithm)
+        if family is None and (mode := get_hybrid_mode(algorithm)) is not None:
+            # ML-KEM for X25519MLKEM768, ML-DSA for ECDSA P-256 + ML-DSA-44
+            family = get_algorithm_family(mode.pqc_algorithm)
     if production_only:
         production_ready = {lib.id for lib in get_production_ready_libraries()}
         libs = [lib for lib in libs if lib.id in production_ready]
