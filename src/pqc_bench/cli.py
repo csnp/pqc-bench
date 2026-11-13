@@ -1587,7 +1587,8 @@ def sector(
         console.print()
         return
 
-    if list_sectors or not sector_name:
+    # None means no sector name was given. An empty name was given, so it is looked up like any other.
+    if list_sectors or sector_name is None:
         console.print("[bold]Critical Infrastructure Sectors[/bold]")
         print_rule(console, "═", 70)
         console.print()

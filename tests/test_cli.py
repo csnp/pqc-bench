@@ -1488,6 +1488,23 @@ def test_sector_list_unknown_sector_and_help_give_the_same_sector_names(monkeypa
         assert CliRunner().invoke(cli.app, ["sector", name]).exit_code == 0, name
 
 
+def test_sector_with_an_empty_name_is_refused_like_a_blank_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty sector name exits 1 with the unknown-sector lines instead of printing the sector table."""
+    _wide_console(monkeypatch)
+    empty = CliRunner().invoke(cli.app, ["sector", ""])
+    assert empty.exit_code == 1
+    assert "Critical Infrastructure Sectors" not in empty.output
+    blank = CliRunner().invoke(cli.app, ["sector", " "])
+    assert blank.exit_code == 1
+    # The same lines as for a name of one space, without the space that is its value.
+    assert empty.output == blank.output.replace("Unknown sector:  ", "Unknown sector: ", 1)
+    assert re.findall(r"^  • (\S+)$", empty.output, re.MULTILINE) == list(cli.SECTOR_NAMES)
+    # With no name given, the command still prints the sector table.
+    listed = CliRunner().invoke(cli.app, ["sector"])
+    assert listed.exit_code == 0
+    assert "Critical Infrastructure Sectors" in listed.output
+
+
 def _performance_section(output: str) -> str:
     """The Performance section of explain output, up to the Compliance heading."""
     return output.split("\nPerformance\n", 1)[1].split("\nCompliance\n", 1)[0]
