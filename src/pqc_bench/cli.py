@@ -1170,9 +1170,9 @@ def threat(
 
     # Risk assessment
     if assessment.is_at_risk:
-        console.print("[bold red]⚠ AT RISK[/bold red]")
+        console.print("[bold red]⚠ At risk[/bold red]")
     else:
-        console.print("[bold green]✓ MANAGEABLE[/bold green]")
+        console.print("[bold green]✓ Manageable[/bold green]")
 
     console.print()
     console.print(assessment.risk_explanation)

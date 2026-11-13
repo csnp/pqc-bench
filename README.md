@@ -54,7 +54,7 @@ pqc-bench recommend "embedded sensor with 256KB RAM"
 # → ML-KEM-768 (FIPS 203, NIST Level 3)
 
 pqc-bench threat --data-type healthcare_records
-# → ⚠ AT RISK
+# → ⚠ At risk
 ```
 
 ---
@@ -106,7 +106,7 @@ Quantify your "Store Now, Decrypt Later" risk:
 ```bash
 $ pqc-bench threat --data-type healthcare_records
 ...
-⚠ AT RISK
+⚠ At risk
 
 Data needs 102 years of protection (a 100-year lifespan plus 2 years to
 migrate), and the quantum threat is expected in 15 years, so the data outlives

@@ -23,6 +23,8 @@ HELP_TEXT = ROOT / "src" / "pqc_bench" / "cli.py"
 
 COMMAND = re.compile(r"^\s*(?:\$\s+)?(pqc-bench\s.*?)\s*(?:#.*)?$")
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+# "SLH-DSA-128f" and the like; FIPS 205 names a parameter set with its hash, as in SLH-DSA-SHA2-128f.
+SHORT_SLH_DSA_NAME = re.compile(r"\bSLH-DSA-\d")
 
 
 def _documented_commands() -> list[tuple[str, str]]:
@@ -213,6 +215,17 @@ def test_user_guide_cnsa_2_0_query_examples(query: str, selects: bool) -> None:
     constraints = QueryParser().parse(query)
     assert (ComplianceFramework.CNSA_2_0 in constraints.compliance_frameworks) is selects
     assert (constraints.min_security_level == SecurityLevel.LEVEL_5) is selects
+
+
+@pytest.mark.parametrize("path", USER_DOCS, ids=[str(p.relative_to(ROOT)) for p in USER_DOCS])
+def test_docs_name_slh_dsa_parameter_sets_as_fips_205_does(path: Path) -> None:
+    """An SLH-DSA parameter set is named as in FIPS 205 and in the CLI (SLH-DSA-SHA2-128f), not SLH-DSA-128f."""
+    short = [
+        f"{path.relative_to(ROOT)}:{number}: {line}"
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
+        if SHORT_SLH_DSA_NAME.search(line)
+    ]
+    assert short == []
 
 
 @pytest.mark.parametrize("path", ALL_DOCS, ids=[str(p.relative_to(ROOT)) for p in ALL_DOCS])

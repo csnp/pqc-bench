@@ -1406,6 +1406,20 @@ def test_threat_healthcare_states_the_facts_without_the_alarm_line(monkeypatch: 
     ]
 
 
+@pytest.mark.parametrize(
+    ("data_type", "status"),
+    [("healthcare_records", "⚠ At risk"), ("corporate_strategy", "✓ Manageable")],
+    ids=["at-risk", "manageable"],
+)
+def test_threat_status_line_is_not_in_capitals(monkeypatch: pytest.MonkeyPatch, data_type: str, status: str) -> None:
+    """The status above the explanation reads "⚠ At risk" or "✓ Manageable", not "⚠ AT RISK" or "✓ MANAGEABLE"."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["threat", "--data-type", data_type])
+    assert result.exit_code == 0
+    assert status in _printed_lines(result.output)
+    assert status.upper() not in result.output
+
+
 def test_threat_list_deadline_column_is_not_in_capitals(monkeypatch: pytest.MonkeyPatch) -> None:
     """The Deadline column reads "87y overdue", not "87y OVERDUE"."""
     _wide_console(monkeypatch)
