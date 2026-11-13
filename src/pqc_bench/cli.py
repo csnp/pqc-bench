@@ -1032,9 +1032,9 @@ def libraries(
             console.print(line)
         console.print()
 
-    # liboqs is in the unfiltered table: say why it is not for production and what to run next
-    liboqs = LIBRARIES.get("liboqs")
-    if liboqs and not production_only and not fips_only:
+    # When liboqs is a row of the table shown, say why it is not for production and what to run next.
+    # --production and --fips drop it, as does an --algorithm it does not support, such as a hybrid mode.
+    if any(lib.id == "liboqs" for lib in libs):
         console.print("[bold]liboqs is not production-ready[/bold]")
         print_rule(console, "─", 40)
         console.print("  Its README says it is meant for research and prototyping, and does not")
