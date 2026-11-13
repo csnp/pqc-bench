@@ -953,7 +953,8 @@ def libraries(
     # the algorithm, or for a hybrid mode that of its post-quantum algorithm.
     family: str | None = None
     libs = list(LIBRARIES.values())
-    if algorithm:
+    # None means --algorithm was not given. An empty value was given, so it is looked up like any other.
+    if algorithm is not None:
         libs = get_libraries_for_algorithm(algorithm)
         if not libs and not _names_known_algorithm(algorithm):
             console.print(Text.assemble("Unknown algorithm: ", _shown(algorithm), style="red"))

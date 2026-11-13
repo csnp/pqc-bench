@@ -1022,6 +1022,36 @@ def test_libraries_unknown_algorithm_exits_1_and_names_the_valid_ids(
     )
 
 
+@pytest.mark.parametrize(
+    "options",
+    [
+        ["--algorithm", "{}"],
+        ["--algorithm={}"],
+        ["-a", "{}"],
+        ["--production", "--algorithm", "{}"],
+        ["--fips", "--algorithm", "{}"],
+    ],
+    ids=" ".join,
+)
+def test_libraries_empty_algorithm_is_refused_as_an_unknown_algorithm(
+    monkeypatch: pytest.MonkeyPatch, options: list[str]
+) -> None:
+    """An empty --algorithm value exits 1 and prints what an unknown value prints, with no value after the colon.
+
+    `libraries --algorithm ""` printed the table `libraries` prints with no option and exited 0, as if
+    --algorithm had not been given. {} in the options marks where the value goes.
+    """
+    _wide_console(monkeypatch)
+    empty, unknown = ([option.format(value) for option in options] for value in ("", "bogus"))
+    reference = CliRunner().invoke(cli.app, ["libraries", *unknown])
+    result = CliRunner().invoke(cli.app, ["libraries", *empty])
+    assert result.exit_code == 1
+    assert "Unknown algorithm:" in _printed_lines(result.output)
+    assert "Available algorithms:" in _printed_lines(result.output)
+    assert "Notable Users" not in result.output
+    assert result.output == reference.output.replace("bogus", "")
+
+
 def test_libraries_every_id_listed_for_an_unknown_algorithm_finds_libraries(monkeypatch: pytest.MonkeyPatch) -> None:
     """Each ID listed after "Unknown algorithm" prints the library table when given to --algorithm."""
     _wide_console(monkeypatch)
