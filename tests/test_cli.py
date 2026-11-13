@@ -709,3 +709,166 @@ def test_libraries_algorithm_lists_the_falcon_libraries(monkeypatch: pytest.Monk
     assert result.exit_code == 0
     assert "No libraries found" not in result.output
     assert "liboqs (Open Quantum Safe)" in result.output
+
+
+COMPARE_COMMAND = re.compile(r"pqc-bench compare (\S+) (\S+)")
+
+
+def _compare_commands(output: str) -> list[tuple[str, str]]:
+    """The two algorithm IDs of each ``pqc-bench compare`` command in the output, in order."""
+    return COMPARE_COMMAND.findall(output)
+
+
+def _table_rows(output: str) -> list[str]:
+    """The first cell of each line of the table in the output, header included."""
+    return [line.split("│")[1].strip() for line in output.splitlines() if line.startswith("│")]
+
+
+def _assert_like_for_like(runner: CliRunner, first: str, second: str) -> None:
+    """``compare first second`` names two different algorithms of one type, runs, and names a winner."""
+    assert first in ALGORITHMS
+    assert second in ALGORITHMS
+    assert first != second
+    assert ALGORITHMS[first].algorithm_type == ALGORITHMS[second].algorithm_type
+    result = runner.invoke(cli.app, ["compare", first, second])
+    assert result.exit_code == 0, result.output
+    assert "Winner" in result.output
+
+
+@pytest.mark.parametrize(
+    ("args", "suggested"),
+    [
+        (["ml-kem-1024", "ml-dsa-65"], [("ml-kem-1024", "ml-kem-768"), ("ml-dsa-65", "ml-dsa-87")]),
+        (["ml-dsa-65", "ml-kem-1024"], [("ml-dsa-65", "ml-dsa-87"), ("ml-kem-1024", "ml-kem-768")]),
+    ],
+)
+def test_compare_of_a_kem_and_a_signature_scheme_names_no_winner_and_suggests_like_for_like_pairs(
+    monkeypatch: pytest.MonkeyPatch, args: list[str], suggested: list[tuple[str, str]]
+) -> None:
+    """A KEM and a signature scheme do different jobs: no Winner column, and a same-type pair for each."""
+    _wide_console(monkeypatch)
+    runner = CliRunner()
+    result = runner.invoke(cli.app, ["compare", *args])
+    assert result.exit_code == 0
+    assert "different jobs" in result.output
+    assert "Winner" not in result.output
+    assert _table_rows(result.output) == [
+        "Property",
+        "Security Level",
+        "Public Key",
+        "Constant-time",
+        "NIST Standard",
+        "Requires FPU",
+    ]
+    assert result.output.index("different jobs") < result.output.index("Property")
+    assert result.output.index("like-for-like") > result.output.index("Requires FPU")
+    assert _compare_commands(result.output) == suggested
+    for first, second in suggested:
+        assert f"pqc-bench compare {first} {second}" in result.output
+        _assert_like_for_like(runner, first, second)
+
+
+@pytest.mark.parametrize(
+    ("args", "line"),
+    [
+        (
+            ["ml-dsa-44", "ml-dsa-44"],
+            "ML-DSA-44 compared with itself: every row would be a tie. "
+            "Pick a second algorithm, for example: pqc-bench compare ml-dsa-44 ml-dsa-65",
+        ),
+        (
+            ["kyber768", "ml-kem-768"],
+            "ML-KEM-768 compared with itself: every row would be a tie. "
+            "Pick a second algorithm, for example: pqc-bench compare ml-kem-768 ml-kem-1024",
+        ),
+    ],
+)
+def test_compare_of_an_algorithm_with_itself_says_so_in_one_line(
+    monkeypatch: pytest.MonkeyPatch, args: list[str], line: str
+) -> None:
+    """The same algorithm twice, by any of its names, prints one line instead of a table of ties."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["compare", *args])
+    assert result.exit_code == 0
+    assert "compared with itself" in result.output
+    assert "Property" not in result.output
+    assert result.output.strip() == line
+
+
+@pytest.mark.parametrize("algorithm_id", list(ALGORITHMS))
+def test_compare_of_any_algorithm_with_itself_suggests_a_second_one_of_its_type_that_runs(
+    monkeypatch: pytest.MonkeyPatch, algorithm_id: str
+) -> None:
+    """The example in the one line compares the algorithm with another of its type, and that command runs."""
+    _wide_console(monkeypatch)
+    runner = CliRunner()
+    result = runner.invoke(cli.app, ["compare", algorithm_id, algorithm_id])
+    assert result.exit_code == 0
+    assert len(result.output.strip().splitlines()) == 1
+    [(first, second)] = _compare_commands(result.output)
+    assert first == algorithm_id
+    _assert_like_for_like(runner, first, second)
+
+
+def test_compare_without_a_second_algorithm_of_the_type_points_at_the_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With one algorithm of each type, compare names pqc-bench list and makes up no like-for-like pair."""
+    _wide_console(monkeypatch)
+    monkeypatch.setattr(
+        cli, "ALGORITHMS", {algo_id: ALGORITHMS[algo_id] for algo_id in ("ml-kem-768", "ml-dsa-44")}
+    )
+    runner = CliRunner()
+
+    result = runner.invoke(cli.app, ["compare", "ml-dsa-44", "ml-dsa-44"])
+    assert result.exit_code == 0
+    assert result.output.strip() == (
+        "ML-DSA-44 compared with itself: every row would be a tie. "
+        "Pick a second algorithm. To see them all: pqc-bench list"
+    )
+    assert runner.invoke(cli.app, ["list"]).exit_code == 0
+
+    result = runner.invoke(cli.app, ["compare", "ml-dsa-44", "ml-kem-768"])
+    assert result.exit_code == 0
+    assert "different jobs" in result.output
+    assert "like-for-like" not in result.output
+    assert _compare_commands(result.output) == []
+
+
+def test_compare_of_two_algorithms_of_one_type_still_names_a_winner(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two signature schemes are compared as before: a Winner column and no note about different jobs."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["compare", "ml-dsa-44", "falcon-512"])
+    assert result.exit_code == 0
+    assert "Winner" in result.output
+    assert "different jobs" not in result.output
+    assert "like-for-like" not in result.output
+
+
+def _recommend_on_a_wide_console(monkeypatch: pytest.MonkeyPatch, query: str) -> str:
+    """Run recommend in text mode on a 200-column console and return its output."""
+    console = Console(width=200, force_terminal=False)
+    monkeypatch.setattr(cli, "console", console)
+    monkeypatch.setattr(cli, "terminal", TerminalOutput(console))
+    result = CliRunner().invoke(cli.app, ["recommend", query])
+    assert result.exit_code == 0
+    return result.output
+
+
+@pytest.mark.parametrize(
+    "query",
+    ["mobile banking app", "TLS for a web server", "REST API with JWT auth", "file encryption for healthcare"],
+)
+def test_recommend_footer_compares_only_algorithms_of_one_type(monkeypatch: pytest.MonkeyPatch, query: str) -> None:
+    """The compare command in the Commands footer, when there is one, pairs two algorithms of the same type."""
+    output = _recommend_on_a_wide_console(monkeypatch, query)
+    pairs = _compare_commands(output)
+    assert len(pairs) <= 1
+    for first, second in pairs:
+        _assert_like_for_like(CliRunner(), first, second)
+
+
+def test_recommend_footer_for_mobile_banking_compares_two_kems(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The top pick is a KEM, so the footer compares it with the next ranked KEM, not with a signature scheme."""
+    output = _recommend_on_a_wide_console(monkeypatch, "mobile banking app")
+    [(first, second)] = _compare_commands(output)
+    assert ALGORITHMS[first].is_kem
+    assert ALGORITHMS[second].is_kem

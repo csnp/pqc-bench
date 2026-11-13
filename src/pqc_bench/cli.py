@@ -14,7 +14,7 @@ from . import __version__
 from .core.constraints import UseCase
 from .core.engine import RecommendationEngine
 from .core.parser import QueryParser
-from .data.algorithms import ALGORITHMS, get_algorithm
+from .data.algorithms import ALGORITHMS, AlgorithmProfile, get_algorithm
 from .data.compliance import COMPLIANCE_FRAMEWORKS, get_framework
 from .data.libraries import (
     HYBRID_KEM_USE_CASE_WORDS,
@@ -201,6 +201,30 @@ def explain(
     terminal.print_algorithm_details(algo)
 
 
+def _nearest_of_same_type(algo: AlgorithmProfile) -> AlgorithmProfile | None:
+    """The other algorithm of ``algo``'s type whose NIST level is nearest to its own.
+
+    A level at or above ``algo``'s is preferred to a level below it, so the result is
+    not a weaker algorithm while an equal or stronger one of the same type exists.
+    Algorithms that tie keep their order in ALGORITHMS.
+    """
+    level = algo.security.nist_level
+    return min(
+        (
+            other
+            for other in ALGORITHMS.values()
+            if other.algorithm_type == algo.algorithm_type and other.id != algo.id
+        ),
+        key=lambda other: (other.security.nist_level < level, abs(other.security.nist_level - level)),
+        default=None,
+    )
+
+
+def _describe_algorithm_type(algo: AlgorithmProfile) -> str:
+    """What kind of algorithm ``algo`` is, as words for a sentence."""
+    return "a key encapsulation mechanism (key exchange)" if algo.is_kem else "a signature scheme"
+
+
 @app.command()
 def compare(
     algorithm1: str = typer.Argument(..., help="First algorithm ID"),
@@ -226,10 +250,36 @@ def compare(
         console.print(f"[red]Unknown algorithm: {escape(algorithm2)}[/red]")
         raise typer.Exit(1)
 
+    if algo1.id == algo2.id:
+        # Also reached by two names of one algorithm, such as kyber768 and ml-kem-768.
+        example = _nearest_of_same_type(algo1)
+        pick = (
+            f"Pick a second algorithm, for example: pqc-bench compare {algo1.id} {example.id}"
+            if example is not None
+            else "Pick a second algorithm. To see them all: pqc-bench list"
+        )
+        # soft_wrap keeps this one line, so the command in it is never split across two lines.
+        console.print(
+            f"{algo1.names.nist_name} compared with itself: every row would be a tie. {pick}",
+            soft_wrap=True,
+        )
+        return
+
+    # A KEM and a signature scheme do different jobs, so no row of the two has a winner.
+    same_type = algo1.algorithm_type == algo2.algorithm_type
+
     console.print()
     console.print(f"[bold]Comparison: {algo1.names.nist_name} vs {algo2.names.nist_name}[/bold]")
     print_rule(console, "═", 60)
     console.print()
+
+    if not same_type:
+        console.print(
+            f"{algo1.names.nist_name} is {_describe_algorithm_type(algo1)} and "
+            f"{algo2.names.nist_name} is {_describe_algorithm_type(algo2)}. They do different jobs "
+            "and are used together, not instead of each other, so neither one wins."
+        )
+        console.print()
 
     # Create comparison table
     from rich import box
@@ -239,18 +289,26 @@ def compare(
     table.add_column("Property", style="dim")
     table.add_column(algo1.names.nist_name)
     table.add_column(algo2.names.nist_name)
-    table.add_column("Winner", justify="center")
+    if same_type:
+        table.add_column("Winner", justify="center")
+
+    def add_row(name: str, value1: str, value2: str, winner: str) -> None:
+        """Add a row to the table, with its Winner cell when the two algorithms are of one type."""
+        cells = [name, value1, value2]
+        if same_type:
+            cells.append(winner if winner != "=" else "[dim]tie[/dim]")
+        table.add_row(*cells)
 
     # Security Level
     winner = "=" if algo1.security.nist_level == algo2.security.nist_level else (
         algo1.names.nist_name if algo1.security.nist_level > algo2.security.nist_level
         else algo2.names.nist_name
     )
-    table.add_row(
+    add_row(
         "Security Level",
         f"Level {algo1.security.nist_level}",
         f"Level {algo2.security.nist_level}",
-        winner if winner != "=" else "[dim]tie[/dim]",
+        winner,
     )
 
     # Public Key Size
@@ -258,11 +316,11 @@ def compare(
         algo1.names.nist_name if algo1.sizes.public_key < algo2.sizes.public_key
         else algo2.names.nist_name
     )
-    table.add_row(
+    add_row(
         "Public Key",
         f"{algo1.sizes.public_key:,} bytes",
         f"{algo2.sizes.public_key:,} bytes",
-        winner if winner != "=" else "[dim]tie[/dim]",
+        winner,
     )
 
     # Signature/Ciphertext Size
@@ -272,24 +330,14 @@ def compare(
         winner = "=" if s1 == s2 else (
             algo1.names.nist_name if s1 < s2 else algo2.names.nist_name
         )
-        table.add_row(
-            "Signature",
-            f"{s1:,} bytes",
-            f"{s2:,} bytes",
-            winner if winner != "=" else "[dim]tie[/dim]",
-        )
+        add_row("Signature", f"{s1:,} bytes", f"{s2:,} bytes", winner)
     elif algo1.is_kem and algo2.is_kem:
         c1 = algo1.sizes.ciphertext or 0
         c2 = algo2.sizes.ciphertext or 0
         winner = "=" if c1 == c2 else (
             algo1.names.nist_name if c1 < c2 else algo2.names.nist_name
         )
-        table.add_row(
-            "Ciphertext",
-            f"{c1:,} bytes",
-            f"{c2:,} bytes",
-            winner if winner != "=" else "[dim]tie[/dim]",
-        )
+        add_row("Ciphertext", f"{c1:,} bytes", f"{c2:,} bytes", winner)
 
     # Constant-time
     ct1 = "[green]Yes[/green]" if algo1.security.constant_time else "[yellow]No[/yellow]"
@@ -297,12 +345,7 @@ def compare(
     winner = "=" if algo1.security.constant_time == algo2.security.constant_time else (
         algo1.names.nist_name if algo1.security.constant_time else algo2.names.nist_name
     )
-    table.add_row(
-        "Constant-time",
-        ct1,
-        ct2,
-        winner if winner != "=" else "[dim]tie[/dim]",
-    )
+    add_row("Constant-time", ct1, ct2, winner)
 
     # NIST Standardized
     std1 = "[green]Yes[/green]" if algo1.compliance.nist_standardized else "[yellow]No[/yellow]"
@@ -310,12 +353,7 @@ def compare(
     winner = "=" if algo1.compliance.nist_standardized == algo2.compliance.nist_standardized else (
         algo1.names.nist_name if algo1.compliance.nist_standardized else algo2.names.nist_name
     )
-    table.add_row(
-        "NIST Standard",
-        std1,
-        std2,
-        winner if winner != "=" else "[dim]tie[/dim]",
-    )
+    add_row("NIST Standard", std1, std2, winner)
 
     # FPU Required
     fpu1 = "[yellow]Yes[/yellow]" if algo1.requirements.requires_fpu else "[green]No[/green]"
@@ -323,15 +361,21 @@ def compare(
     winner = "=" if algo1.requirements.requires_fpu == algo2.requirements.requires_fpu else (
         algo1.names.nist_name if not algo1.requirements.requires_fpu else algo2.names.nist_name
     )
-    table.add_row(
-        "Requires FPU",
-        fpu1,
-        fpu2,
-        winner if winner != "=" else "[dim]tie[/dim]",
-    )
+    add_row("Requires FPU", fpu1, fpu2, winner)
 
     console.print(table)
     console.print()
+
+    if not same_type:
+        like_for_like: list[str] = []
+        for algo in (algo1, algo2):
+            other = _nearest_of_same_type(algo)
+            if other is not None:
+                like_for_like.append(f"pqc-bench compare {algo.id} {other.id}")
+        if like_for_like:
+            # soft_wrap keeps this one line, so no command in it is split across two lines.
+            console.print(f"For a like-for-like comparison: {' or '.join(like_for_like)}", soft_wrap=True)
+            console.print()
 
 
 @app.command()
