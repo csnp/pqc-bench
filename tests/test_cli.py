@@ -335,6 +335,77 @@ def _recommend_text(monkeypatch: pytest.MonkeyPatch, *args: str) -> str:
     return result.output
 
 
+def _level_3_default_notes(notes: list[str]) -> list[str]:
+    return [note for note in notes if note.startswith("Level 3 default:")]
+
+
+@pytest.mark.parametrize("mode", [[], ["--verbose"]])
+def test_recommend_text_names_the_level_3_default(
+    monkeypatch: pytest.MonkeyPatch, mode: list[str]
+) -> None:
+    """Both text modes say which Level 3 default the Level 5 pick ranks above."""
+    output = " ".join(_recommend_text(monkeypatch, "TLS for a web server", *mode).split())
+    assert "Level 3 default: ML-KEM-768 (KEM) and ML-DSA-65 (signature)" in output
+    assert "ML-KEM-1024 ranks above ML-KEM-768 here" in output
+    assert "ML-DSA-87 ranks above ML-DSA-65 here" in output
+
+
+def test_recommend_json_has_one_level_3_default_note_and_the_same_ranking() -> None:
+    result = CliRunner().invoke(cli.app, ["recommend", "TLS for a web server", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert len(_level_3_default_notes(data["notes"])) == 1
+    assert [rec["algorithm_id"] for rec in data["recommendations"]] == [
+        "ml-kem-1024",
+        "ml-dsa-87",
+        "ml-kem-768",
+    ]
+
+
+def test_commands_named_in_the_level_3_default_note_run() -> None:
+    """Each command the note cites runs and shows the default it names."""
+    query = "TLS for a web server"
+    result = RecommendationEngine().recommend(QueryParser().parse(query), query=query)
+    notes = _level_3_default_notes(result.notes)
+    assert len(notes) == 1
+    commands = re.findall(r"'(pqc-bench [^']+)'", notes[0])
+    assert commands == ["pqc-bench explain ml-kem-768", "pqc-bench explain ml-dsa-65"]
+    for command in commands:
+        run = CliRunner().invoke(cli.app, command.split()[1:])
+        assert run.exit_code == 0, command
+        assert "Level 3 default" in " ".join(run.output.split()), command
+
+
+def _explain_notes(algorithm_id: str) -> str:
+    """The Notes section of `explain <algorithm_id>`, with whitespace collapsed."""
+    result = CliRunner().invoke(cli.app, ["explain", algorithm_id])
+    assert result.exit_code == 0
+    notes = result.output.split("\nNotes\n", 1)[1].split("\nReferences\n", 1)[0]
+    return " ".join(notes.split())
+
+
+@pytest.mark.parametrize(
+    ("algorithm_id", "ranked_above"),
+    [("ml-kem-768", "ML-KEM-1024"), ("ml-dsa-65", "ML-DSA-87")],
+)
+def test_explain_says_which_algorithm_recommend_ranks_above_the_default(
+    algorithm_id: str, ranked_above: str
+) -> None:
+    notes = _explain_notes(algorithm_id)
+    assert "Level 3 default" in notes
+    assert "Recommended default" not in notes
+    assert f"ranks {ranked_above} above it" in notes
+
+
+def test_explain_ml_dsa_44_says_when_recommend_lists_it() -> None:
+    """ML-DSA-44 is not offered as the JWT choice; its note says when recommend lists it."""
+    notes = _explain_notes("ml-dsa-44")
+    assert "JWT, API auth" not in notes
+    assert "Level 3" in notes
+    assert "Smallest ML-DSA variant" in notes
+    assert "Fastest verification in ML-DSA family" in notes
+
+
 @pytest.mark.parametrize("mode", [[], ["--verbose"]])
 def test_recommend_text_shows_every_top_rank_before_the_alternatives(
     monkeypatch: pytest.MonkeyPatch, mode: list[str]

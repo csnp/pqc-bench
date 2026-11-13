@@ -103,7 +103,7 @@ pqc-bench explain ml-kem-768
 - Most enterprise applications
 
 **Considerations:**
-- **Recommended default** for most applications
+- **The Level 3 default.** For a query that sets no size limit, the `recommend` command ranks ML-KEM-1024 above it, because ML-KEM-1024 goes beyond the Level 3 minimum; both meet it.
 - Good balance of security and performance
 - Widely deployed (Chrome, Cloudflare, AWS)
 - ~2x size of ML-KEM-512 with higher security
@@ -166,6 +166,8 @@ pqc-bench explain ml-dsa-44
 - Constrained devices with FPU
 - Short-lived certificates
 
+ML-DSA-44 is Level 2, so the `recommend` command lists it only when a query lowers the usual Level 3 minimum, as a query for a constrained device does; for JWT and API signing at Level 3, that command lists ML-DSA-87 and ML-DSA-65.
+
 **Considerations:**
 - Fastest ML-DSA variant
 - Signature size may impact bandwidth-constrained protocols
@@ -196,7 +198,7 @@ pqc-bench explain ml-dsa-65
 - Enterprise PKI
 
 **Considerations:**
-- **Recommended default** for most signature use cases
+- **The Level 3 default.** For a query that sets no size limit, the `recommend` command ranks ML-DSA-87 above it, because ML-DSA-87 goes beyond the Level 3 minimum; both meet it.
 - Balanced security and performance
 - Suitable for certificate chains
 - Good library support
@@ -401,6 +403,8 @@ Is this for CNSA 2.0 / government classified?
         ├── Yes → ML-KEM-1024, ML-DSA-87
         └── No → ML-KEM-768, ML-DSA-65
 ```
+
+For a query that sets no size limit, the `recommend` command ranks ML-KEM-1024 and ML-DSA-87 above these defaults, because they go beyond the Level 3 minimum; the note under its result names the Level 3 default.
 
 ### By Use Case
 

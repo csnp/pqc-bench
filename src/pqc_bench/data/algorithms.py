@@ -383,7 +383,9 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             ],
         ),
         notes=[
-            "Recommended default for most applications",
+            "The Level 3 default. For a query that sets no size limit, the recommend "
+            "command ranks ML-KEM-1024 above it, because ML-KEM-1024 goes beyond the "
+            "Level 3 minimum; both meet it.",
             "Best security/performance balance",
             "Not part of CNSA 2.0, which uses ML-KEM-1024",
         ],
@@ -578,7 +580,10 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
         ),
         notes=[
             "Smallest ML-DSA variant",
-            "Good for high-volume signing (JWT, API auth)",
+            "Level 2, below the usual Level 3 minimum. The recommend command lists it "
+            "only when a query lowers that minimum, as a query for a constrained device "
+            "does. For JWT and API signing at Level 3, that command lists ML-DSA-87 and "
+            "ML-DSA-65.",
             "Fastest verification in ML-DSA family",
         ],
     ),
@@ -669,7 +674,9 @@ ALGORITHMS: dict[str, AlgorithmProfile] = {
             ],
         ),
         notes=[
-            "Recommended default for most signature use cases",
+            "The Level 3 default. For a query that sets no size limit, the recommend "
+            "command ranks ML-DSA-87 above it, because ML-DSA-87 goes beyond the "
+            "Level 3 minimum; both meet it.",
             "Not part of CNSA 2.0, which uses ML-DSA-87",
             "Good balance of security and performance",
         ],
