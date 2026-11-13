@@ -190,13 +190,20 @@ LIBRARIES: dict[str, LibraryProfile] = {
         # In process: CMVP's Modules In Process list (updated 2026-11-13) shows four
         # BoringCrypto modules from Google, and BoringSSL's FIPS notes mark three module
         # versions "Review Pending at NIST"; their CAVP validations A6838, A7303 and A7700
-        # list ML-KEM (https://boringssl.googlesource.com/boringssl/+/main/crypto/fipsmodule/FIPS.md).
+        # list ML-KEM KeyGen and EncapDecap, ML-DSA KeyGen, SigGen and SigVer, and SLH-DSA
+        # KeyGen, SigGen and SigVer
+        # (https://boringssl.googlesource.com/boringssl/+/main/crypto/fipsmodule/FIPS.md).
         fips_status=FIPSStatus.IN_PROCESS,
         fips_cert_number=None,
+        # Parameter sets taken from the public headers on main, read 2026-11-13: mlkem.h
+        # declares MLKEM768_* and MLKEM1024_* (no ML-KEM-512), mldsa.h declares MLDSA44_*,
+        # MLDSA65_* and MLDSA87_*, and slhdsa.h declares SLHDSA_SHA2_128S_* and
+        # SLHDSA_SHAKE_256F_*. The slh_dsa IDs below name the FIPS 205 SHA2 sets, so
+        # SHAKE-256f has no ID here; include/openssl holds no Falcon header.
         algorithms=AlgorithmSupport(
-            ml_kem=["768"],
-            ml_dsa=[],
-            slh_dsa=[],
+            ml_kem=["768", "1024"],
+            ml_dsa=["44", "65", "87"],
+            slh_dsa=["128s"],
             falcon=[],
             hybrid_kem=["X25519MLKEM768"],
             hybrid_sig=[],
@@ -211,7 +218,15 @@ LIBRARIES: dict[str, LibraryProfile] = {
             ),
             LibraryCaveat(
                 severity="info",
-                description="Limited algorithm support - X25519MLKEM768 is the only hybrid KEM",
+                description="In TLS, X25519MLKEM768 is the only hybrid KEM group; the other post-quantum "
+                "group, MLKEM1024, is offered on its own",
+                source="https://boringssl.googlesource.com/boringssl/+/main/ssl/ssl_key_share.cc",
+            ),
+            LibraryCaveat(
+                severity="info",
+                description="The ML-KEM and ML-DSA parameter sets listed here come from the mlkem.h and "
+                "mldsa.h headers; evp.h reaches the same sets through EVP_pkey_ml_kem_* and EVP_pkey_ml_dsa_*",
+                source="https://boringssl.googlesource.com/boringssl/+/main/include/openssl/mldsa.h",
             ),
             LibraryCaveat(
                 severity="info",
@@ -229,8 +244,9 @@ LIBRARIES: dict[str, LibraryProfile] = {
         ],
         not_recommended_for=[
             "Applications needing stable API",
-            "Full PQC algorithm suite",
-            "Signature algorithms",
+            "Falcon (FN-DSA) signatures",
+            "SLH-DSA sets other than SHA2-128s and SHAKE-256f",
+            "ML-KEM-512 deployments",
         ],
     ),
     "openssl-3.5": LibraryProfile(

@@ -151,6 +151,36 @@ class TestLibraryDatabase:
             "cover the classical BoringCrypto module; none lists ML-KEM, ML-DSA or SLH-DSA"
         ]
 
+    def test_boringssl_lists_the_parameter_sets_its_headers_declare(self) -> None:
+        """BoringSSL lists the ML-KEM, ML-DSA and SLH-DSA sets declared in mlkem.h, mldsa.h and slhdsa.h."""
+        boringssl = get_library("boringssl")
+        assert boringssl is not None
+        assert boringssl.algorithms is not None
+        # mlkem.h declares MLKEM768_* and MLKEM1024_*, mldsa.h MLDSA44_*, MLDSA65_* and
+        # MLDSA87_*, slhdsa.h SLHDSA_SHA2_128S_* and SLHDSA_SHAKE_256F_* (read 2026-11-13).
+        # The slh_dsa IDs name the FIPS 205 SHA2 sets, so SHAKE-256f has no ID here.
+        assert boringssl.algorithms.ml_kem == ["768", "1024"]
+        assert boringssl.algorithms.ml_dsa == ["44", "65", "87"]
+        assert boringssl.algorithms.slh_dsa == ["128s"]
+        assert boringssl.algorithms.falcon == []
+
+    @pytest.mark.parametrize("algorithm_id", ["ml-kem-768", "ml-kem-1024", "ml-dsa-44", "ml-dsa-65", "ml-dsa-87"])
+    def test_boringssl_is_listed_for_the_sets_it_declares(self, algorithm_id: str) -> None:
+        """The libraries table for each declared ML-KEM and ML-DSA set includes BoringSSL."""
+        assert "boringssl" in [lib.id for lib in get_libraries_for_algorithm(algorithm_id)]
+
+    def test_boringssl_is_not_listed_for_ml_kem_512(self) -> None:
+        """mlkem.h declares no ML-KEM-512, so BoringSSL is not listed for it."""
+        assert "boringssl" not in [lib.id for lib in get_libraries_for_algorithm("ml-kem-512")]
+
+    def test_boringssl_names_the_gaps_it_has_rather_than_signatures(self) -> None:
+        """The not-recommended list names Falcon and the undeclared SLH-DSA sets, not signatures as a whole."""
+        boringssl = get_library("boringssl")
+        assert boringssl is not None
+        assert "Signature algorithms" not in boringssl.not_recommended_for
+        assert "Full PQC algorithm suite" not in boringssl.not_recommended_for
+        assert "Falcon (FN-DSA) signatures" in boringssl.not_recommended_for
+
 
 class TestHybridModes:
     """Tests for hybrid mode database."""
