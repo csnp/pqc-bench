@@ -2,11 +2,13 @@
 
 import pytest
 
+from pqc_bench.data.algorithms import UNPROFILED_ALGORITHM_NAMES
 from pqc_bench.data.libraries import (
     HYBRID_MODES,
     LIBRARIES,
     FIPSStatus,
     ProductionReadiness,
+    get_algorithm_family,
     get_hybrid_mode,
     get_hybrid_modes_for_use_case,
     get_libraries_for_algorithm,
@@ -83,6 +85,23 @@ class TestLibraryDatabase:
         listed = [lib.id for lib in LIBRARIES.values() if lib.algorithms and "128s" in lib.algorithms.slh_dsa]
         assert listed
         assert [lib.id for lib in get_libraries_for_algorithm("slh-dsa-128s")] == listed
+
+    @pytest.mark.parametrize(
+        ("name", "algo_id"),
+        [
+            *((fips_name, algo_id) for algo_id, fips_name in UNPROFILED_ALGORITHM_NAMES.items()),
+            ("slhdsa128s", "slh-dsa-128s"),
+            ("slh-dsa-sha2-256f", "slh-dsa-256f"),
+        ],
+    )
+    def test_libraries_for_the_fips_205_name_of_an_slh_dsa_set_without_an_algorithm_profile(
+        self, name: str, algo_id: str
+    ) -> None:
+        """The FIPS 205 name of an SLH-DSA set with no profile, or its ID without separators, finds the
+        libraries its ID finds and the SLH-DSA family."""
+        assert get_libraries_for_algorithm(algo_id)
+        assert get_libraries_for_algorithm(name) == get_libraries_for_algorithm(algo_id)
+        assert get_algorithm_family(name) == "slh_dsa"
 
     @pytest.mark.parametrize("value", ["", "falcon", "bogus", "x-512", "__class___x", "__dict___x"])
     def test_libraries_for_an_unknown_value_is_empty(self, value: str) -> None:
