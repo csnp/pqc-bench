@@ -179,8 +179,16 @@ LIBRARIES: dict[str, LibraryProfile] = {
         language="C",
         license="ISC + OpenSSL",
         production_readiness=ProductionReadiness.PRODUCTION,
-        fips_status=FIPSStatus.VALIDATED,
-        fips_cert_number="4407",
+        # No active CMVP certificate for Google's BoringCrypto module lists ML-KEM, ML-DSA
+        # or SLH-DSA. CMVP certificate pages, read 2026-11-13: #4407 is a FIPS 140-2
+        # certificate, now historical; active FIPS 140-3 certificates #4735, #5104, #5244
+        # and #5296 list no ML-KEM, ML-DSA or SLH-DSA.
+        # In process: CMVP's Modules In Process list (updated 2026-11-13) shows four
+        # BoringCrypto modules from Google, and BoringSSL's FIPS notes mark three module
+        # versions "Review Pending at NIST"; their CAVP validations A6838, A7303 and A7700
+        # list ML-KEM (https://boringssl.googlesource.com/boringssl/+/main/crypto/fipsmodule/FIPS.md).
+        fips_status=FIPSStatus.IN_PROCESS,
+        fips_cert_number=None,
         algorithms=AlgorithmSupport(
             ml_kem=["768"],
             ml_dsa=[],
@@ -200,6 +208,12 @@ LIBRARIES: dict[str, LibraryProfile] = {
             LibraryCaveat(
                 severity="info",
                 description="Limited algorithm support - X25519MLKEM768 is the only hybrid KEM",
+            ),
+            LibraryCaveat(
+                severity="info",
+                description="FIPS 140-2 certificate #4407 (now historical) and FIPS 140-3 certificates #4735, "
+                "#5104, #5244 and #5296 cover the classical BoringCrypto module; none lists ML-KEM, ML-DSA or SLH-DSA",
+                source="https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5296",
             ),
         ],
         platforms=["linux", "macos", "windows", "android", "ios"],
