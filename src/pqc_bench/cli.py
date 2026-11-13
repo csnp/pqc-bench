@@ -19,12 +19,16 @@ from .core.parser import QueryParser
 from .data.algorithms import ALGORITHMS, UNPROFILED_ALGORITHM_NAMES, AlgorithmProfile, get_algorithm
 from .data.compliance import COMPLIANCE_FRAMEWORKS, get_framework
 from .data.libraries import (
+    ALGORITHM_FAMILY_NAMES,
     HYBRID_KEM_USE_CASE_WORDS,
     HYBRID_MODES,
     HYBRID_SIGNATURE_USE_CASE_WORDS,
     LIBRARIES,
     HybridMode,
+    LibraryProfile,
     ProductionReadiness,
+    get_algorithm_family,
+    get_fips_certificate_for_family,
     get_hybrid_mode,
     get_hybrid_modes_for_use_case,
     get_libraries_for_algorithm,
@@ -811,6 +815,21 @@ def list_algorithms(
     console.print()
 
 
+def _certificate_leaves_out(lib: LibraryProfile, family: str) -> Text:
+    """The line under the libraries table for a FIPS certificate that does not list ``family``.
+
+    It names the library, the certificate and the algorithm families that certificate lists.
+    """
+    family_name = ALGORITHM_FAMILY_NAMES[family]
+    listed = [ALGORITHM_FAMILY_NAMES[name] for name in lib.fips_cert_families or []]
+    if listed:
+        listed_text = listed[0] if len(listed) < 2 else f"{', '.join(listed[:-1])} and {listed[-1]}"
+        scope = f"lists {listed_text}, not {family_name}"
+    else:
+        scope = f"does not list {family_name}"
+    return Text(f"{lib.name}: FIPS certificate #{lib.fips_cert_number} {scope}.")
+
+
 @app.command()
 def libraries(
     production_only: bool = typer.Option(
@@ -857,6 +876,7 @@ def libraries(
     console.print()
 
     # Filter libraries
+    family: str | None = None  # the AlgorithmSupport field of --algorithm, when it filters the table
     if fips_only:
         libs = get_libraries_with_fips()
     elif production_only:
@@ -867,6 +887,7 @@ def libraries(
             console.print(Text.assemble("No libraries found supporting ", _shown(algorithm), style="yellow"))
             console.print()
             return
+        family = get_algorithm_family(algorithm)
     else:
         libs = list(LIBRARIES.values())
 
@@ -876,6 +897,8 @@ def libraries(
     table.add_column("FIPS")
     table.add_column("Notable Users")
 
+    # A line for each certificate the FIPS column leaves out because it does not list the family
+    left_out: list[Text] = []
     for lib in libs:
         # Production readiness styling
         if lib.production_readiness == ProductionReadiness.PRODUCTION:
@@ -887,11 +910,15 @@ def libraries(
         else:
             prod = "[dim]Deprecated[/dim]"
 
-        # FIPS styling
-        if lib.fips_cert_number:
-            fips = f"[green]#{lib.fips_cert_number}[/green]"
+        # FIPS styling. Filtered by --algorithm, the column shows a certificate whose recorded
+        # families include that algorithm's family, or one whose families are not recorded.
+        cert = lib.fips_cert_number if family is None else get_fips_certificate_for_family(lib, family)
+        if cert:
+            fips = f"[green]#{cert}[/green]"
         else:
             fips = "[dim]No[/dim]"
+            if family is not None and lib.fips_cert_number:
+                left_out.append(_certificate_leaves_out(lib, family))
 
         # Notable users
         users = ", ".join(lib.notable_users[:3]) if lib.notable_users else "-"
@@ -900,6 +927,12 @@ def libraries(
 
     console.print(table)
     console.print()
+
+    # Say which algorithm families each certificate the FIPS column left out lists
+    if left_out:
+        for line in left_out:
+            console.print(line)
+        console.print()
 
     # liboqs is in the unfiltered table: say why it is not for production and what to run next
     liboqs = LIBRARIES.get("liboqs")
