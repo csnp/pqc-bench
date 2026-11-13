@@ -124,8 +124,13 @@ LIBRARIES: dict[str, LibraryProfile] = {
         language="C",
         license="Apache-2.0 + ISC",
         production_readiness=ProductionReadiness.PRODUCTION,
+        # CMVP certificate pages, read 2026-11-13: FIPS 140-3 certificates #5298 (AWS-LC 3
+        # Cryptographic Module (dynamic), validated 2026-06-03) and #5314 (static, validated
+        # 2026-06-05) list ML-KEM KeyGen and EncapDecap, and no ML-DSA or SLH-DSA. AWS-LC
+        # certificates #4631, #4816, #5146 and #5429 list no ML-KEM, ML-DSA or SLH-DSA.
+        # #4793 is Canonical's Ubuntu 22.04 Libgcrypt module, not an AWS-LC module.
         fips_status=FIPSStatus.VALIDATED,
-        fips_cert_number="4793",
+        fips_cert_number="5298",
         algorithms=AlgorithmSupport(
             ml_kem=["512", "768", "1024"],
             ml_dsa=["44", "65", "87"],
@@ -147,7 +152,9 @@ LIBRARIES: dict[str, LibraryProfile] = {
         caveats=[
             LibraryCaveat(
                 severity="info",
-                description="ML-KEM uses draft FIPS 203 implementation pending final validation",
+                description="FIPS 140-3 certificates #5298 (dynamic) and #5314 (static) for the AWS-LC 3 "
+                "Cryptographic Module list ML-KEM; neither lists ML-DSA or SLH-DSA",
+                source="https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/5298",
             ),
         ],
         platforms=["linux", "macos", "windows", "android", "ios"],

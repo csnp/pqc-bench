@@ -1461,6 +1461,18 @@ def test_libraries_shows_no_fips_certificate_for_wolfssl_pqc(monkeypatch: pytest
     assert "3389" not in fips.output
 
 
+@pytest.mark.parametrize("options", [[], ["--production"], ["--fips"]])
+def test_libraries_cites_an_aws_lc_certificate_that_lists_ml_kem(
+    monkeypatch: pytest.MonkeyPatch, options: list[str]
+) -> None:
+    """AWS-LC's FIPS column shows #5298 (AWS-LC 3, lists ML-KEM), not #4793 (Canonical's Libgcrypt module)."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", *options])
+    assert result.exit_code == 0
+    assert _library_rows(result.output)["AWS-LC (AWS Libcrypto)"][1:3] == ["Production", "#5298"]
+    assert "4793" not in result.output
+
+
 @pytest.mark.parametrize("algorithm", sorted(ALGORITHMS))
 def test_explain_prints_no_quantum_security_bits(algorithm: str) -> None:
     """explain shows no quantum security bit figure, a number with no cited source."""
