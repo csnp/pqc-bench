@@ -21,7 +21,7 @@ Future development plans for PQC-Bench.
 ### Additional Algorithms
 - [ ] Remaining SLH-DSA variants (192f, 256f, 128s, 192s, 256s)
 - [ ] XMSS/LMS stateful hash-based signatures (NIST SP 800-208)
-- [ ] HQC (if NIST finalizes Round 4)
+- [ ] HQC: NIST selected it for standardization in March 2025 (NIST IR 8545); add it when NIST publishes the final HQC standard
 
 ### Additional Compliance Frameworks
 - [ ] DORA (EU Digital Operational Resilience Act) - 2025 deadline

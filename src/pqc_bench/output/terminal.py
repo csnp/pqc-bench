@@ -6,12 +6,13 @@ Provides beautiful, accessible terminal output with progressive disclosure.
 
 from rich import box
 from rich.console import Console
+from rich.padding import Padding
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from ..core.engine import NO_REQUIREMENT_NOTE, Recommendation, RecommendationResult
-from ..data.algorithms import AlgorithmProfile
+from ..core.engine import NO_REQUIREMENT_NOTE, Recommendation, RecommendationResult, performance_figures
+from ..data.algorithms import AlgorithmProfile, PlatformPerformance
 
 # Query Analysis line for a query in which no requirement was recognised.
 DEFAULTS_APPLIED = "Nothing recognised; defaults applied: NIST standardized, Level 3 or higher"
@@ -20,6 +21,24 @@ DEFAULTS_APPLIED = "Nothing recognised; defaults applied: NIST standardized, Lev
 def print_rule(console: Console, character: str, width: int) -> None:
     """Print a rule of ``width`` characters, shortened to the console width if that is less."""
     console.print(character * min(width, console.width))
+
+
+def describe_figures(perf: PlatformPerformance) -> str:
+    """How the performance figures of one platform were obtained, as the algorithm data records it."""
+    method = perf.methodology
+    if method is None:
+        return "estimates, no benchmark methodology recorded"
+    return (
+        f"{method.library} {method.version} benchmark, {method.compiler}, {method.cpu}, "
+        f"{method.iterations:,} iterations, {method.date}"
+    )
+
+
+def _and_list(items: list[str]) -> str:
+    """Join the items as "a", "a and b" or "a, b and c"."""
+    if len(items) < 2:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} and {items[-1]}"
 
 
 class TerminalOutput:
@@ -34,6 +53,16 @@ class TerminalOutput:
 
     def __init__(self, console: Console | None = None) -> None:
         self.console = console or Console()
+
+    def _print_indented(self, text: str, style: str) -> None:
+        """Print ``text`` as it is, two spaces in, with every wrapped line indented the same."""
+        self.console.print(Padding(Text(text, style=style), (0, 0, 0, 2), expand=False))
+
+    def _print_figures_source(self, label: str, perf: PlatformPerformance) -> None:
+        """Print how the figures named by ``label`` were obtained, and the URL of the method's source."""
+        self._print_indented(f"{label}: {describe_figures(perf)}", style="dim")
+        if perf.methodology is not None:
+            self._print_indented(perf.methodology.source, style="cyan")
 
     def print_recommendation(
         self,
@@ -147,6 +176,9 @@ class TerminalOutput:
         self.console.print()
         self.console.print("[bold]Scoring Factors[/bold]")
         self._print_scoring_table(primary)
+        figures = performance_figures(primary.algorithm, result.constraints)
+        if figures is not None:
+            self._print_figures_source(f"Performance uses the {figures.platform} figures", figures)
 
         # Rest of the top recommendations with details
         if len(result.recommendations) > 1:
@@ -383,6 +415,14 @@ class TerminalOutput:
                 )
 
         self.console.print(table)
+
+        # Where the figures come from. Platforms whose figures were obtained the same way share a line.
+        sources: dict[tuple[str, str | None], list[str]] = {}
+        for platform, perf in algo.performance.items():
+            source = perf.methodology.source if perf.methodology is not None else None
+            sources.setdefault((describe_figures(perf), source), []).append(platform)
+        for platforms in sources.values():
+            self._print_figures_source(f"{_and_list(platforms)} figures", algo.performance[platforms[0]])
 
         # Compliance
         self.console.print()

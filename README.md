@@ -2,7 +2,7 @@
 
 **Post-Quantum Cryptography Recommendation Engine**
 
-*"What post-quantum crypto should I use?"* Finally, there's a tool for that.
+Describe your use case in plain words, and PQC-Bench recommends post-quantum algorithms for it and says why.
 
 [![CI](https://github.com/csnp/pqc-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/csnp/pqc-bench/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -199,9 +199,9 @@ Protocol Impact: ML-KEM-768
 
 ### NIST Post-Quantum Cryptography Standards
 
-- [FIPS 203 - ML-KEM](https://csrc.nist.gov/pubs/fips/203/final) — Module-Lattice-Based Key-Encapsulation Mechanism
-- [FIPS 204 - ML-DSA](https://csrc.nist.gov/pubs/fips/204/final) — Module-Lattice-Based Digital Signature Algorithm
-- [FIPS 205 - SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final) — Stateless Hash-Based Digital Signature Algorithm
+- [FIPS 203 - ML-KEM](https://csrc.nist.gov/pubs/fips/203/final): Module-Lattice-Based Key-Encapsulation Mechanism
+- [FIPS 204 - ML-DSA](https://csrc.nist.gov/pubs/fips/204/final): Module-Lattice-Based Digital Signature Algorithm
+- [FIPS 205 - SLH-DSA](https://csrc.nist.gov/pubs/fips/205/final): Stateless Hash-Based Digital Signature Algorithm
 
 ### Additional Resources
 
@@ -224,7 +224,7 @@ PQC-Bench is developed by the **[Cybersecurity Non-Profit (CSNP)](https://csnp.o
 
 ### QRAMM Toolkit
 
-PQC-Bench is part of the **[Quantum Readiness Assurance Maturity Model (QRAMM)](https://qramm.org)** toolkit—a suite of open-source tools for post-quantum migration:
+PQC-Bench is part of the **[Quantum Readiness Assurance Maturity Model (QRAMM)](https://qramm.org)** toolkit, a suite of open-source tools for post-quantum migration:
 
 | Tool | Description |
 |------|-------------|
@@ -239,12 +239,12 @@ Learn more at [qramm.org](https://qramm.org) and [csnp.org](https://csnp.org).
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 Copyright 2025 Cybersecurity Non-Profit (CSNP)
 
 ---
 
-Built with purpose by **[CSNP](https://csnp.org)** — Advancing cybersecurity for everyone
+Built with purpose by **[CSNP](https://csnp.org)**, advancing cybersecurity for everyone
 
 [QRAMM](https://qramm.org) • [CSNP](https://csnp.org) • [Issues](https://github.com/csnp/pqc-bench/issues)
