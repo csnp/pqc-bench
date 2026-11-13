@@ -100,10 +100,19 @@ class TerminalOutput:
         self.console.print()
         self.console.print("[dim]Commands:[/dim]")
         self.console.print(f"  [cyan]pqc-bench explain {algo.id}[/cyan]  - Full algorithm details")
-        if result.alternatives:
-            alt_id = result.alternatives[0].algorithm.id
+        # Compare with the next ranked algorithm of the same type: a KEM and a
+        # signature scheme do different jobs, so comparing them names no winner.
+        other = next(
+            (
+                rec.algorithm
+                for rec in result.recommendations[1:] + result.alternatives
+                if rec.algorithm.algorithm_type == algo.algorithm_type
+            ),
+            None,
+        )
+        if other is not None:
             self.console.print(
-                f"  [cyan]pqc-bench compare {algo.id} {alt_id}[/cyan]  - Side-by-side comparison"
+                f"  [cyan]pqc-bench compare {algo.id} {other.id}[/cyan]  - Side-by-side comparison"
             )
 
     def _print_verbose(self, result: RecommendationResult) -> None:
