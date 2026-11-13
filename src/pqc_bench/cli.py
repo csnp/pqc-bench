@@ -1208,7 +1208,8 @@ def threat(
     print_rule(console, "═", 70)
     console.print()
 
-    if list_types or (not data_type and not urgency):
+    # None means the option was not given. An empty value was given, so it is looked up like any other.
+    if list_types or (data_type is None and urgency is None):
         # List all data profiles
         console.print("[dim]Data must be protected for: lifespan + migration time > quantum threat[/dim]")
         console.print()
@@ -1253,7 +1254,7 @@ def threat(
         console.print()
         return
 
-    if urgency:
+    if urgency is not None:
         # Filter by urgency
         urgency_map = {level.value: level for level in ThreatUrgency}
         urg = urgency_map.get(urgency.lower())

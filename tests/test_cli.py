@@ -844,6 +844,53 @@ def test_threat_urgency_with_no_profile_names_the_levels_that_have_profiles(monk
     assert "Action:" not in result.output
 
 
+def test_threat_with_no_option_lists_every_data_profile(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`threat` with no option prints the table `threat --list` prints, one row per profile, and exits 0."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["threat"])
+    listed = CliRunner().invoke(cli.app, ["threat", "--list"])
+    assert result.exit_code == 0
+    assert result.output == listed.output
+    rows = _table_rows(result.output)
+    for profile in threat_model.DATA_PROFILES.values():
+        assert profile.name in rows
+
+
+_DATA_TYPE_ERROR_LINES = ("Unknown data type:", "Available data types:")
+_URGENCY_ERROR_LINES = ("Unknown urgency level:", f"Valid levels: {cli.URGENCY_LEVELS}")
+
+
+@pytest.mark.parametrize(
+    ("options", "error_lines"),
+    [
+        pytest.param(["--data-type", "{}"], _DATA_TYPE_ERROR_LINES, id="--data-type {}"),
+        pytest.param(["--data-type={}"], _DATA_TYPE_ERROR_LINES, id="--data-type={}"),
+        pytest.param(["-d", "{}"], _DATA_TYPE_ERROR_LINES, id="-d {}"),
+        pytest.param(["--urgency", "{}"], _URGENCY_ERROR_LINES, id="--urgency {}"),
+        pytest.param(["--urgency={}"], _URGENCY_ERROR_LINES, id="--urgency={}"),
+        pytest.param(["-u", "{}"], _URGENCY_ERROR_LINES, id="-u {}"),
+    ],
+)
+def test_threat_empty_data_type_or_urgency_is_refused_as_an_unknown_value(
+    monkeypatch: pytest.MonkeyPatch, options: list[str], error_lines: tuple[str, str]
+) -> None:
+    """An empty --data-type or --urgency value exits 1 and prints what an unknown value prints, with no value.
+
+    `threat --data-type ""` and `threat --urgency ""` printed the table `threat` prints with no option and exited 0,
+    as if the option had not been given. {} in the options marks where the value goes.
+    """
+    _wide_console(monkeypatch)
+    empty, unknown = ([option.format(value) for option in options] for value in ("", "bogus"))
+    reference = CliRunner().invoke(cli.app, ["threat", *unknown])
+    result = CliRunner().invoke(cli.app, ["threat", *empty])
+    assert result.exit_code == 1
+    lines = _printed_lines(result.output)
+    for line in error_lines:
+        assert line in lines
+    assert "Data must be protected for" not in result.output
+    assert result.output == reference.output.replace("bogus", "")
+
+
 @pytest.mark.parametrize("chain_length", ["0", "-3"])
 @pytest.mark.parametrize("env", [{}, COLOUR_FORCED], ids=["plain", "colour"])
 def test_impact_rejects_a_chain_length_below_1(chain_length: str, env: dict[str, str | None]) -> None:
