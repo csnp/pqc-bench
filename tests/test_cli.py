@@ -7,9 +7,12 @@ import re
 import shlex
 from collections.abc import Callable
 from pathlib import Path
+from typing import get_args, get_type_hints
 
 import pytest
 import typer
+import typer.core
+import typer.main
 from rich.console import Console
 from typer.testing import CliRunner
 
@@ -637,6 +640,131 @@ def test_a_new_error_shows_a_value_with_square_brackets_as_typed(
     result = CliRunner().invoke(cli.app, args)
     assert result.exit_code == 1
     assert value in result.output
+
+
+def _cli_commands() -> dict[str, typer.core.TyperCommand]:
+    """The commands of the CLI by name, as Typer builds them from the app.
+
+    Typer 0.26.0 and later do not depend on the click package, so these tests read the commands
+    through typer.core and the functions the commands run, and import nothing from click.
+    """
+    group = typer.main.get_command(cli.app)
+    assert isinstance(group, typer.core.TyperGroup)
+    commands: dict[str, typer.core.TyperCommand] = {}
+    for name, command in group.commands.items():
+        assert isinstance(command, typer.core.TyperCommand)
+        commands[name] = command
+    return commands
+
+
+def _takes_text(command: typer.core.TyperCommand, parameter: str) -> bool:
+    """Whether the function that ``command`` runs declares ``parameter`` as str, alone or in a union
+    such as str | None."""
+    assert command.callback is not None
+    hint = get_type_hints(inspect.unwrap(command.callback))[parameter]
+    return str in (hint, *get_args(hint))
+
+
+CLI_COMMANDS = _cli_commands()
+
+# Every text argument and option of every command, as (command, parameter name). The list is read
+# from the CLI, so a command or an option added later is in it too.
+TEXT_PARAMETERS = [
+    (name, str(param.name))
+    for name, command in CLI_COMMANDS.items()
+    for param in command.params
+    if _takes_text(command, str(param.name))
+]
+
+# An accepted value for each required parameter that a command needs besides the one under test.
+ACCEPTED_VALUES = {
+    ("compare", "algorithm1"): "ml-kem-768",
+    ("compare", "algorithm2"): "ml-kem-512",
+    ("compliance", "framework"): "fips-140-3",
+}
+
+# Values that name nothing the CLI knows, each with the way a message shows it: as typed when every
+# character is printable, otherwise in quotes with each character that is not printable escaped.
+UNKNOWN_VALUES = [
+    pytest.param("[red]bogus[/red]", "[red]bogus[/red]", id="square brackets"),
+    pytest.param(":warning:", ":warning:", id="emoji code"),
+    pytest.param("bögus", "bögus", id="non-ASCII letter"),
+    pytest.param("bogus\nextra", "'bogus\\nextra'", id="line break"),
+    pytest.param("\x1b[31mbogus\x1b[0m", "'\\x1b[31mbogus\\x1b[0m'", id="escape sequence"),
+    # Python passes on the byte 0xE9 of a command-line argument that is not valid UTF-8 as "\udce9".
+    pytest.param("bogus\udce9", "'bogus\\udce9'", id="not UTF-8"),
+    pytest.param("bogus\r", "'bogus\\r'", id="carriage return"),
+    pytest.param("bogus\tvalue", "'bogus\\tvalue'", id="tab"),
+    pytest.param("bogus\x9b", "'bogus\\x9b'", id="C1 control"),
+    pytest.param("bogus\N{RIGHT-TO-LEFT OVERRIDE}", "'bogus\\u202e'", id="right-to-left override"),
+    pytest.param("[/red]\n", "'[/red]\\n'", id="square brackets and line break"),
+]
+
+
+def _arguments(command: str, parameter: str, value: str) -> list[str]:
+    """The arguments that run ``command`` with ``value`` for ``parameter``, an accepted value for
+    each other required parameter, and no other parameter."""
+    arguments = [command]
+    for param in CLI_COMMANDS[command].params:
+        if param.name == parameter:
+            given = value
+        elif param.required:
+            given = ACCEPTED_VALUES[(command, str(param.name))]
+        else:
+            continue
+        arguments += [given] if isinstance(param, typer.core.TyperArgument) else [param.opts[0], given]
+    return arguments
+
+
+def test_the_text_parameters_read_from_the_cli_include_those_of_today() -> None:
+    """Reading TEXT_PARAMETERS, which the next test runs, from the CLI finds the text parameters it has today."""
+    assert set(TEXT_PARAMETERS) >= {
+        ("recommend", "query"),
+        ("explain", "algorithm"),
+        ("compare", "algorithm1"),
+        ("compare", "algorithm2"),
+        ("migrate", "from_algo"),
+        ("compliance", "framework"),
+        ("compliance", "use_case"),
+        ("list", "algorithm_type"),
+        ("libraries", "algorithm"),
+        ("hybrid", "use_case"),
+        ("threat", "data_type"),
+        ("threat", "urgency"),
+        ("impact", "algorithm"),
+        ("sector", "sector_name"),
+    }
+
+
+@pytest.mark.parametrize(
+    ("command", "parameter"), TEXT_PARAMETERS, ids=[" ".join(pair) for pair in TEXT_PARAMETERS]
+)
+@pytest.mark.parametrize(("value", "shown"), UNKNOWN_VALUES)
+def test_an_unknown_value_is_shown_as_typed_or_escaped(
+    monkeypatch: pytest.MonkeyPatch, command: str, parameter: str, value: str, shown: str
+) -> None:
+    """The output is the output for bogus with the value shown in place of bogus, and the exit code is the same.
+
+    A line break or a control character in the value is written as an escape on the line of the
+    message, a value that is not valid UTF-8 gives the message instead of a traceback, and square
+    brackets and emoji codes are shown as typed.
+    """
+    _wide_console(monkeypatch)
+    reference = CliRunner().invoke(cli.app, _arguments(command, parameter, "bogus"))
+    result = CliRunner().invoke(cli.app, _arguments(command, parameter, value))
+    assert result.exception is None or isinstance(result.exception, SystemExit), repr(result.exception)
+    assert result.exit_code == reference.exit_code
+    assert result.output == reference.output.replace("bogus", shown)
+
+
+def test_a_shown_value_is_one_line_of_printable_characters() -> None:
+    """Each C0 and C1 control character, DEL, lone surrogate, line and paragraph separator and the
+    right-to-left override is written as an escape, as repr writes it."""
+    for code in [*range(0x20), 0x7F, *range(0x80, 0xA0), *range(0xD800, 0xE000), 0x2028, 0x2029, 0x202E]:
+        value = f"bogus{chr(code)}"
+        shown = cli._shown(value).plain
+        assert shown == repr(value)
+        assert shown.isprintable(), shown
 
 
 @pytest.mark.parametrize(

@@ -10,7 +10,6 @@ from typing import cast
 
 import typer
 from rich.console import Console
-from rich.markup import escape
 from rich.text import Text
 
 from . import __version__
@@ -57,13 +56,17 @@ console = Console()
 terminal = TerminalOutput(console)
 
 
-def _print_as_typed(prefix: str, value: str, style: str = "red") -> None:
-    """Print ``prefix`` followed by ``value`` exactly as the user typed it.
+def _shown(value: str) -> Text:
+    """A value from the command line, as a message shows it.
 
-    In a string, Rich reads square brackets as markup and ``:name:`` codes as emoji.
-    A Text object is printed as it is, so the value keeps its brackets and colons.
+    A value made only of printable characters is shown as typed. Any other value is shown as repr
+    writes it, in quotes and with each character that is not printable written as an escape such
+    as \\n or \\x1b, so no line break or control character from the value reaches the output, and
+    a value that is not valid UTF-8 is printed instead of raising UnicodeEncodeError. The console
+    prints a Text without reading markup or emoji codes in it, so square brackets and :name: codes
+    are shown as typed.
     """
-    console.print(Text(prefix + value, style=style))
+    return Text(value if value.isprintable() else repr(value))
 
 
 def version_callback(value: bool) -> None:
@@ -204,7 +207,7 @@ def explain(
             console.print()
             _print_hybrid_mode(mode)
             return
-        _print_as_typed("Unknown algorithm: ", algorithm)
+        console.print(Text.assemble("Unknown algorithm: ", _shown(algorithm), style="red"))
         console.print()
         console.print("Available algorithms:")
         for algo_id in sorted(ALGORITHMS.keys()):
@@ -260,11 +263,11 @@ def compare(
     algo2 = get_algorithm(algorithm2)
 
     if algo1 is None:
-        _print_as_typed("Unknown algorithm: ", algorithm1)
+        console.print(Text.assemble("Unknown algorithm: ", _shown(algorithm1), style="red"))
         raise typer.Exit(1)
 
     if algo2 is None:
-        _print_as_typed("Unknown algorithm: ", algorithm2)
+        console.print(Text.assemble("Unknown algorithm: ", _shown(algorithm2), style="red"))
         raise typer.Exit(1)
 
     if algo1.id == algo2.id:
@@ -478,7 +481,7 @@ def migrate(
     }
 
     if from_lower not in migrations:
-        _print_as_typed("Unknown classical algorithm: ", from_algo)
+        console.print(Text.assemble("Unknown classical algorithm: ", _shown(from_algo), style="red"))
         console.print()
         console.print("Supported classical algorithms:")
         for _key, val in migrations.items():
@@ -626,7 +629,7 @@ def compliance(
     fw = get_framework(framework)
 
     if fw is None:
-        _print_as_typed("Unknown compliance framework: ", framework)
+        console.print(Text.assemble("Unknown compliance framework: ", _shown(framework), style="red"))
         console.print()
         console.print("Supported frameworks:")
         for fw_id, fw_data in COMPLIANCE_FRAMEWORKS.items():
@@ -638,7 +641,7 @@ def compliance(
     if use_case is not None:
         use_case_name = use_case.strip().lower().replace("_", "-").replace(" ", "-")
         if use_case_name not in COMPLIANCE_USE_CASES:
-            _print_as_typed("Unknown use case: ", use_case)
+            console.print(Text.assemble("Unknown use case: ", _shown(use_case), style="red"))
             console.print()
             console.print("Accepted use cases:")
             for name, (needs_kem, needs_signature) in COMPLIANCE_USE_CASES.items():
@@ -750,7 +753,7 @@ def list_algorithms(
         # "kems" and "signatures" are accepted as well
         wanted_type = algorithm_type.strip().lower().removesuffix("s")
         if wanted_type not in ("kem", "signature"):
-            _print_as_typed("Unknown algorithm type: ", algorithm_type)
+            console.print(Text.assemble("Unknown algorithm type: ", _shown(algorithm_type), style="red"))
             console.print("Valid types: kem, signature")
             raise typer.Exit(1)
 
@@ -839,7 +842,7 @@ def libraries(
     elif algorithm:
         libs = get_libraries_for_algorithm(algorithm)
         if not libs:
-            _print_as_typed("No libraries found supporting ", algorithm, style="yellow")
+            console.print(Text.assemble("No libraries found supporting ", _shown(algorithm), style="yellow"))
             console.print()
             return
     else:
@@ -955,7 +958,7 @@ def hybrid(
     else:
         modes = get_hybrid_modes_for_use_case(use_case)
         if not modes:
-            _print_as_typed("Unknown use case: ", use_case)
+            console.print(Text.assemble("Unknown use case: ", _shown(use_case), style="red"))
             console.print()
             console.print("Accepted use cases:")
             console.print(f"  • {', '.join(HYBRID_KEM_USE_CASE_WORDS)}: hybrid key exchange")
@@ -1099,7 +1102,7 @@ def threat(
         urgency_map = {level.value: level for level in ThreatUrgency}
         urg = urgency_map.get(urgency.lower())
         if urg is None:
-            _print_as_typed("Unknown urgency level: ", urgency)
+            console.print(Text.assemble("Unknown urgency level: ", _shown(urgency), style="red"))
             console.print(f"Valid levels: {URGENCY_LEVELS}")
             raise typer.Exit(1)
 
@@ -1112,7 +1115,7 @@ def threat(
             console.print()
             return
 
-        console.print(f"[bold]Data profiles with {escape(urgency.upper())} urgency:[/bold]")
+        console.print(f"[bold]Data profiles with {urg.value.upper()} urgency:[/bold]")
         console.print()
         for profile in profiles:
             console.print(f"  • [bold]{profile.name}[/bold]")
@@ -1124,7 +1127,7 @@ def threat(
     # Detailed assessment for specific data type
     assessment = assess_sndl_risk(data_type)
     if not assessment:
-        _print_as_typed("Unknown data type: ", str(data_type))
+        console.print(Text.assemble("Unknown data type: ", _shown(str(data_type)), style="red"))
         console.print()
         console.print("Available data types:")
         for profile_id in DATA_PROFILES.keys():
@@ -1195,7 +1198,7 @@ def impact(
 
     algo = get_algorithm(algorithm)
     if not algo:
-        _print_as_typed("Unknown algorithm: ", algorithm)
+        console.print(Text.assemble("Unknown algorithm: ", _shown(algorithm), style="red"))
         raise typer.Exit(1)
 
     console.print()
@@ -1478,7 +1481,7 @@ def sector(
     profile = get_sector_profile(sector_id)
 
     if not profile:
-        _print_as_typed("Unknown sector: ", sector_name)
+        console.print(Text.assemble("Unknown sector: ", _shown(sector_name), style="red"))
         console.print()
         console.print("Available sectors:")
         for name in SECTOR_NAMES:
