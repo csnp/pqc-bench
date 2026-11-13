@@ -15,6 +15,7 @@ from pqc_bench.data.algorithms import (
     get_algorithms_by_family,
     get_algorithms_by_type,
     get_nist_standardized,
+    get_unprofiled_algorithm_id,
 )
 
 
@@ -72,6 +73,25 @@ class TestAlgorithmDatabase:
     def test_get_algorithm_partial_or_other_names(self, name: str) -> None:
         """A family name, a wrong variant or a hybrid mode name finds no algorithm."""
         assert get_algorithm(name) is None
+
+    @pytest.mark.parametrize(
+        ("name", "algo_id"),
+        [
+            ("slh-dsa-128s", "slh-dsa-128s"),
+            ("SLH-DSA-128S", "slh-dsa-128s"),
+            ("SLH-DSA-SHA2-128s", "slh-dsa-128s"),
+            ("SLH-DSA-SHA2-256f", "slh-dsa-256f"),
+            ("slh_dsa_sha2_192s", "slh-dsa-192s"),
+        ],
+    )
+    def test_get_unprofiled_algorithm_id_by_id_or_fips_205_name(self, name: str, algo_id: str) -> None:
+        """An unprofiled SLH-DSA set is found by its ID or its FIPS 205 name, in any case."""
+        assert get_unprofiled_algorithm_id(name) == algo_id
+
+    @pytest.mark.parametrize("name", ["", "slh-dsa-128f", "SLH-DSA-SHA2-128f", "ml-kem-768", "slh-dsa", "nonsense"])
+    def test_get_unprofiled_algorithm_id_of_other_names(self, name: str) -> None:
+        """A profiled algorithm, a family name or an unknown value names no unprofiled algorithm."""
+        assert get_unprofiled_algorithm_id(name) is None
 
     @pytest.mark.parametrize(
         ("name", "nist_name"),
