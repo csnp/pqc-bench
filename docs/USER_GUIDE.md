@@ -508,7 +508,7 @@ Check available algorithms:
 pqc-bench list
 ```
 
-`explain`, `compare`, `impact` and `libraries --algorithm` accept an algorithm's ID, NIST name or legacy name, so `ml-kem-768`, `ML-KEM-768` and `Kyber768` name the same algorithm.
+`explain`, `compare`, `impact` and `libraries --algorithm` accept an algorithm's ID, NIST name or legacy name, so `ml-kem-768`, `ML-KEM-768` and `Kyber768` name the same algorithm. `explain` and `libraries --algorithm` also accept a hybrid mode by the name `pqc-bench hybrid` prints, such as `X25519MLKEM768`, or by its ID, such as `x25519-mlkem768`.
 
 ### "Command not found"
 

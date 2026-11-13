@@ -279,6 +279,35 @@ class TestHybridModes:
         # BoringSSL and AWS-LC should support it
         assert "boringssl" in mode.libraries or "aws-lc" in mode.libraries
 
+    @pytest.mark.parametrize(
+        ("value", "lib_ids"),
+        [
+            ("X25519MLKEM768", ["aws-lc", "boringssl", "openssl-3.5", "wolfssl"]),
+            ("x25519-mlkem768", ["aws-lc", "boringssl", "openssl-3.5", "wolfssl"]),
+            ("SecP384r1MLKEM1024", ["openssl-3.5", "wolfssl"]),
+            ("secp384r1-mlkem1024", ["openssl-3.5", "wolfssl"]),
+            ("ECDSA P-256 + ML-DSA-44", ["aws-lc"]),
+            ("ecdsa-p384-mldsa65", ["aws-lc"]),
+        ],
+    )
+    def test_libraries_for_a_hybrid_mode(self, value: str, lib_ids: list[str]) -> None:
+        """A hybrid mode's ID or name finds the libraries its record names, in LIBRARIES order.
+
+        That record is the list explain and hybrid print. The lookup found no library for any hybrid mode.
+        """
+        mode = get_hybrid_mode(value)
+        assert mode is not None
+        assert sorted(mode.libraries) == sorted(lib_ids)
+        assert [lib.id for lib in get_libraries_for_algorithm(value)] == lib_ids
+
+    @pytest.mark.parametrize("mode_id", [mode.id for mode in HYBRID_MODES.values() if mode.kem_or_sig == "kem"])
+    def test_libraries_for_a_hybrid_kem_are_the_profiles_that_list_its_group(self, mode_id: str) -> None:
+        """For a hybrid KEM, those libraries are also the ones whose profile lists its TLS group under hybrid_kem."""
+        mode = HYBRID_MODES[mode_id]
+        listed = [lib.id for lib in LIBRARIES.values() if lib.algorithms and mode.name in lib.algorithms.hybrid_kem]
+        assert listed
+        assert [lib.id for lib in get_libraries_for_algorithm(mode.name)] == listed
+
 
 class TestLibraryProfiles:
     """Tests for library profile completeness."""
