@@ -465,3 +465,100 @@ class TestSectorBaselineNote:
         assert len(notes) == 1
         assert "ML-KEM-768 does not fit this query's other limits" in notes[0]
         assert "meet" not in notes[0]
+
+
+class TestDefaultBaselineNote:
+    """recommend names the Level 3 default when a query without a sector baseline ranks another algorithm first."""
+
+    @staticmethod
+    def _notes(query: str) -> list[str]:
+        return RecommendationEngine().recommend(QueryParser().parse(query), query=query).notes
+
+    @staticmethod
+    def _default_notes(notes: list[str]) -> list[str]:
+        return [note for note in notes if note.startswith("Level 3 default:")]
+
+    def test_tls_note_names_both_defaults_and_why_each_ranks_lower(self) -> None:
+        assert self._default_notes(self._notes("TLS for a web server")) == [
+            "Level 3 default: ML-KEM-768 (KEM) and ML-DSA-65 (signature). "
+            "See 'pqc-bench explain ml-kem-768' and 'pqc-bench explain ml-dsa-65'. "
+            "ML-KEM-1024 ranks above ML-KEM-768 here because it goes beyond the Level 3 "
+            "minimum; both meet it. "
+            "ML-DSA-87 ranks above ML-DSA-65 here because it goes beyond the Level 3 "
+            "minimum; both meet it."
+        ]
+
+    def test_signature_only_result_names_only_the_signature_default(self) -> None:
+        notes = self._default_notes(self._notes("REST API with JWT auth"))
+        assert len(notes) == 1
+        assert notes[0].startswith("Level 3 default: ML-DSA-65 (signature). ")
+        assert "'pqc-bench explain ml-dsa-65'" in notes[0]
+        assert "ML-DSA-87 ranks above ML-DSA-65" in notes[0]
+        assert "(KEM)" not in notes[0]
+        assert "ML-KEM" not in notes[0]
+
+    def test_kem_only_result_names_only_the_kem_default(self) -> None:
+        notes = self._default_notes(self._notes("file encryption"))
+        assert len(notes) == 1
+        assert notes[0].startswith("Level 3 default: ML-KEM-768 (KEM). ")
+        assert "'pqc-bench explain ml-kem-768'" in notes[0]
+        assert "(signature)" not in notes[0]
+        assert "ML-DSA" not in notes[0]
+
+    def test_no_default_note_when_the_query_has_a_sector_baseline(self) -> None:
+        notes = self._notes("file encryption for healthcare")
+        assert not any("Level 3 default" in note for note in notes)
+        assert len([note for note in notes if note.startswith("Sector baseline")]) == 1
+
+    def test_a_framework_without_a_sector_baseline_gets_the_default_note(self) -> None:
+        """"cloud" brings in FedRAMP, which has no sector baseline to name instead."""
+        query = "encrypt backups in the cloud"
+        constraints = QueryParser().parse(query)
+        assert constraints.compliance_frameworks == [ComplianceFramework.FEDRAMP]
+        notes = RecommendationEngine().recommend(constraints, query=query).notes
+        assert not any(note.startswith("Sector baseline") for note in notes)
+        default_notes = self._default_notes(notes)
+        assert len(default_notes) == 1
+        assert default_notes[0].startswith("Level 3 default: ML-KEM-768 (KEM). ")
+        assert "ML-KEM-1024 ranks above ML-KEM-768" in default_notes[0]
+
+    def test_no_note_when_the_top_pick_is_the_default(self) -> None:
+        constraints = Constraints(needs_kem=True, is_embedded=True)
+        result = RecommendationEngine().recommend(constraints)
+        assert result.primary is not None
+        assert result.primary.algorithm.names.nist_name == "ML-KEM-768"
+        assert not any("ML-KEM-1024" in note for note in result.notes)
+        assert self._default_notes(result.notes) == []
+
+    def test_a_lowered_floor_is_named_as_the_one_the_query_asks_for(self) -> None:
+        notes = self._default_notes(self._notes("JWT auth on an embedded device"))
+        assert len(notes) == 1
+        assert notes[0].startswith("Level 3 default: ML-DSA-65 (signature). ")
+        assert (
+            "ML-DSA-44 ranks above ML-DSA-65 here on the other ranking factors, such as "
+            "speed and size; both meet the Level 1 minimum this query asks for."
+        ) in notes[0]
+
+    def test_a_default_below_a_raised_floor_is_not_said_to_meet_it(self) -> None:
+        notes = self._default_notes(self._notes("maximum security file encryption"))
+        assert len(notes) == 1
+        assert "ML-KEM-768 is below the Level 5 minimum this query asks for" in notes[0]
+        assert "meet" not in notes[0]
+
+
+def test_an_algorithm_called_a_default_is_ranked_first_or_named_in_a_note() -> None:
+    """explain calls an algorithm a default only where recommend ranks it first or names it."""
+    called_default = [
+        algo
+        for algo in ALGORITHMS.values()
+        if any("default" in note.lower() for note in algo.notes)
+    ]
+    assert called_default
+    for algo in called_default:
+        result = RecommendationEngine().recommend(
+            Constraints(needs_kem=algo.is_kem, needs_signature=algo.is_signature)
+        )
+        assert result.primary is not None
+        assert result.primary.algorithm.id == algo.id or any(
+            algo.names.nist_name in note for note in result.notes
+        ), f"{algo.id} is called a default, but recommend neither ranks it first nor names it"

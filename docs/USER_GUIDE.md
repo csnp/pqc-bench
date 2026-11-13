@@ -422,7 +422,8 @@ $ pqc-bench recommend "TLS 1.3 for nginx web server" --json --top 1
     }
   ],
   "notes": [
-    "TLS/VPN requires both KEM and signature algorithms. See 'pqc-bench hybrid' for hybrid modes."
+    "TLS/VPN requires both KEM and signature algorithms. See 'pqc-bench hybrid' for hybrid modes.",
+    "Level 3 default: ML-KEM-768 (KEM). See 'pqc-bench explain ml-kem-768'. ML-KEM-1024 ranks above ML-KEM-768 here because it goes beyond the Level 3 minimum; both meet it."
   ]
 }
 ```

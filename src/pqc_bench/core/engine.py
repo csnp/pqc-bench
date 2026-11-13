@@ -24,6 +24,12 @@ NO_REQUIREMENT_NOTE = (
     'pqc-bench recommend "TLS for a web server"'
 )
 
+# The Level 3 default of each algorithm type, by algorithm_type. Level 3 is the
+# min_security_level default of Constraints. For a query without a sector
+# baseline, a note names the default of each type whose top pick is another
+# algorithm, and says why that pick ranks first or why the default is not ranked.
+DEFAULT_BASELINE = {"kem": "ML-KEM-768", "signature": "ML-DSA-65"}
+
 
 def _framework_id(name: str) -> str:
     """Normalize a framework name such as "FIPS 140-3" to its ID ("fips_140_3")."""
@@ -608,6 +614,14 @@ class RecommendationEngine:
             if note:
                 notes.append(note)
 
+        # A query with a framework that has a sector baseline is compared with that
+        # baseline above. Every other query, including one whose framework has no
+        # sector (such as FIPS 140-3 or FedRAMP), is compared with the Level 3 default.
+        if not any(get_crosswalk(f.value) for f in constraints.compliance_frameworks):
+            note = self._default_baseline_note(constraints, recommendations)
+            if note:
+                notes.append(note)
+
         return notes
 
     def _sector_baseline_note(
@@ -630,45 +644,98 @@ class RecommendationEngine:
         else:
             minimum = f"the Level {floor} minimum this query asks for"
 
+        reasons = self._baseline_reasons(
+            constraints,
+            recommendations,
+            sector.recommended_kem,
+            sector.recommended_sig,
+            minimum,
+        )
+        if not reasons:
+            return None
+        return (
+            f"Sector baseline for {sector.name}: {sector.recommended_kem} (KEM) and "
+            f"{sector.recommended_sig} (signature). See 'pqc-bench sector {sector_id}' and "
+            f"'pqc-bench threat --data-type {data_profile_id}'. "
+            + " ".join(reason for _, reason in reasons)
+        )
+
+    def _default_baseline_note(
+        self,
+        constraints: Constraints,
+        recommendations: list[Recommendation],
+    ) -> str | None:
+        """Name the Level 3 default of each type whose top pick differs from it."""
+        floor = constraints.min_security_level
+        if floor == SecurityLevel.LEVEL_3:
+            minimum = "the Level 3 minimum"
+        else:
+            minimum = f"the Level {floor.value} minimum this query asks for"
+
+        reasons = self._baseline_reasons(
+            constraints,
+            recommendations,
+            DEFAULT_BASELINE["kem"],
+            DEFAULT_BASELINE["signature"],
+            minimum,
+        )
+        if not reasons:
+            return None
+        defaults = " and ".join(
+            f"{baseline.names.nist_name} ({'KEM' if baseline.is_kem else 'signature'})"
+            for baseline, _ in reasons
+        )
+        commands = " and ".join(f"'pqc-bench explain {baseline.id}'" for baseline, _ in reasons)
+        return f"Level 3 default: {defaults}. See {commands}. " + " ".join(
+            reason for _, reason in reasons
+        )
+
+    def _baseline_reasons(
+        self,
+        constraints: Constraints,
+        recommendations: list[Recommendation],
+        baseline_kem: str,
+        baseline_sig: str,
+        minimum: str,
+    ) -> list[tuple[AlgorithmProfile, str]]:
+        """Say why the top KEM and the top signature of the result are not the baselines.
+
+        Returns the baseline and one sentence for each type whose top pick is
+        another algorithm, KEM first. The baselines are NIST names, and
+        ``minimum`` names the query's security floor in those sentences, for
+        example "the Level 3 minimum".
+        """
+        floor = constraints.min_security_level.value
         by_name = {algo.names.nist_name: algo for algo in self.algorithms.values()}
         candidates = {algo.names.nist_name for algo in self._filter_algorithms(constraints)}
         top_kem = next((r.algorithm for r in recommendations if r.algorithm.is_kem), None)
         top_sig = next((r.algorithm for r in recommendations if r.algorithm.is_signature), None)
 
         reasons = []
-        for top, baseline_name in (
-            (top_kem, sector.recommended_kem),
-            (top_sig, sector.recommended_sig),
-        ):
+        for top, baseline_name in ((top_kem, baseline_kem), (top_sig, baseline_sig)):
             baseline = by_name.get(baseline_name)
             if top is None or baseline is None or top.names.nist_name == baseline_name:
                 continue
             top_name = top.names.nist_name
             if baseline.security.nist_level < floor:
-                reasons.append(f"{baseline_name} is below {minimum}, so it is not ranked here.")
+                reason = f"{baseline_name} is below {minimum}, so it is not ranked here."
             elif baseline_name not in candidates:
-                reasons.append(
+                reason = (
                     f"{baseline_name} does not fit this query's other limits, "
                     "so it is not ranked here."
                 )
             elif top.security.nist_level > baseline.security.nist_level:
-                reasons.append(
+                reason = (
                     f"{top_name} ranks above {baseline_name} here because it goes beyond "
                     f"{minimum}; both meet it."
                 )
             else:
-                reasons.append(
+                reason = (
                     f"{top_name} ranks above {baseline_name} here on the other ranking "
                     f"factors, such as speed and size; both meet {minimum}."
                 )
-
-        if not reasons:
-            return None
-        return (
-            f"Sector baseline for {sector.name}: {sector.recommended_kem} (KEM) and "
-            f"{sector.recommended_sig} (signature). See 'pqc-bench sector {sector_id}' and "
-            f"'pqc-bench threat --data-type {data_profile_id}'. " + " ".join(reasons)
-        )
+            reasons.append((baseline, reason))
+        return reasons
 
     def _get_performance_reason(self, algo: AlgorithmProfile, constraints: Constraints) -> str:
         """Get performance-related reason string."""

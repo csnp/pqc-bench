@@ -168,13 +168,15 @@ Protocol Impact: ML-KEM-768
 | Algorithm | Type | Standard | Security Level | Primary Use Case |
 |-----------|------|----------|----------------|------------------|
 | ML-KEM-512 | KEM | FIPS 203 | 1 | Constrained devices |
-| ML-KEM-768 | KEM | FIPS 203 | 3 | General purpose (recommended) |
+| ML-KEM-768 | KEM | FIPS 203 | 3 | General purpose, Level 3 default |
 | ML-KEM-1024 | KEM | FIPS 203 | 5 | High security, long-term |
 | ML-DSA-44 | Signature | FIPS 204 | 2 | Fast signing, small keys |
-| ML-DSA-65 | Signature | FIPS 204 | 3 | General purpose (recommended) |
+| ML-DSA-65 | Signature | FIPS 204 | 3 | General purpose, Level 3 default |
 | ML-DSA-87 | Signature | FIPS 204 | 5 | CNSA 2.0 compliance |
 | SLH-DSA-* | Signature | FIPS 205 | 1-5 | Conservative, hash-based |
 | FN-DSA (Falcon) | Signature | FIPS 206* | 1,5 | Compact signatures |
+
+`pqc-bench recommend` ranks ML-KEM-1024 and ML-DSA-87 first for a query that sets no size limit, because they go beyond the Level 3 minimum; the note under the result names the Level 3 default.
 
 *FIPS 206 pending finalization
 

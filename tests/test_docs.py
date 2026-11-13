@@ -11,7 +11,7 @@ from typer.testing import CliRunner
 from pqc_bench import cli
 from pqc_bench.cli import app
 from pqc_bench.core.constraints import ComplianceFramework, SecurityLevel
-from pqc_bench.core.engine import RecommendationEngine
+from pqc_bench.core.engine import DEFAULT_BASELINE, RecommendationEngine
 from pqc_bench.core.parser import QueryParser
 from pqc_bench.data.compliance import MILITARY_PEOPLE_AND_TOPIC_WORDS, MILITARY_SYSTEM_WORDS
 from pqc_bench.data.libraries import HYBRID_MODES
@@ -88,6 +88,15 @@ def test_readme_example_results_match_the_cli() -> None:
         "embedded sensor with 256KB RAM",
         "REST API with JWT auth, running on AWS Lambda",
     } <= set(checked)
+
+
+def test_readme_table_calls_each_default_the_level_3_default() -> None:
+    """The README algorithm table qualifies the defaults that recommend's note names."""
+    rows = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+    for name in DEFAULT_BASELINE.values():
+        row = next((line for line in rows if line.startswith(f"| {name} |")), None)
+        assert row is not None, f"README table has no row for {name}"
+        assert "Level 3 default" in row, row
 
 
 def _doc_sample(command: str, path: Path = ROOT / "README.md") -> list[str]:
