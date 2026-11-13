@@ -6,6 +6,8 @@ comparisons, and migration guidance.
 """
 
 
+from typing import cast
+
 import typer
 from rich.console import Console
 from rich.markup import escape
@@ -522,8 +524,18 @@ def migrate(
         console.print("  • Certificate chains will be significantly larger")
         console.print("  • Signing/verification performance similar or better")
     else:
-        ct_diff = (pqc_algo.sizes.ciphertext or 0) - classical["ciphertext"]
-        console.print(f"  • TLS handshake will transfer ~{ct_diff:,} more bytes")
+        # The same computation as `impact`, against the key share of the key exchange in this table.
+        handshake = calculate_tls_kem_impact(
+            pqc_algo.id,
+            baseline_name=cast(str, classical["name"]),
+            baseline_key_share=cast(int, classical["pub_key"]),
+        )
+        if handshake is not None:
+            console.print(f"  • TLS 1.3 handshake vs {classical['name']}, both directions:")
+            console.print(f"      ClientHello       +{handshake.client_hello_delta:,} bytes (sent by the client)")
+            console.print(f"      ServerHello       +{handshake.server_hello_delta:,} bytes (sent by the server)")
+            console.print(f"      Total Handshake   +{handshake.total_handshake_delta:,} bytes")
+            console.print(f"  • Run [cyan]pqc-bench impact {pqc_algo.id}[/cyan] for fragmentation and middlebox risk")
         console.print("  • Key exchange performance similar or better")
 
     console.print()

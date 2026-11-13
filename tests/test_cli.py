@@ -4,6 +4,7 @@ import inspect
 import io
 import json
 import re
+import shlex
 from collections.abc import Callable
 from pathlib import Path
 
@@ -653,6 +654,89 @@ def test_impact_accepts_a_chain_length_of_1() -> None:
     result = CliRunner().invoke(cli.app, ["impact", "ml-dsa-65", "--chain-length", "1"])
     assert result.exit_code == 0
     assert "Chain (1)" in result.output
+
+
+HANDSHAKE_ROW = re.compile(r"(ClientHello|ServerHello|Total Handshake)\s+\+([\d,]+) bytes")
+
+
+def _handshake_rows(output: str) -> list[tuple[str, str]]:
+    """The ClientHello, ServerHello and Total Handshake figures in the output, in order."""
+    return HANDSHAKE_ROW.findall(output)
+
+
+def _migrate(monkeypatch: pytest.MonkeyPatch, from_algo: str) -> str:
+    """Run migrate on a 200-column console and return its output."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["migrate", "--from", from_algo])
+    assert result.exit_code == 0
+    return result.output
+
+
+def _impact_analysis(output: str) -> str:
+    """The Impact Analysis section of migrate's output."""
+    return output.split("Impact Analysis", 1)[1].split("Alternative", 1)[0]
+
+
+def test_migrate_from_x25519_counts_the_handshake_in_both_directions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The ClientHello and the ServerHello both grow, so the total is more than the ciphertext growth."""
+    analysis = _impact_analysis(_migrate(monkeypatch, "x25519"))
+    assert "TLS 1.3 handshake vs X25519, both directions" in analysis
+    assert "+1,152" in analysis
+    assert "+1,056" in analysis
+    assert "2,208" in analysis
+    assert _handshake_rows(analysis) == [
+        ("ClientHello", "1,152"),
+        ("ServerHello", "1,056"),
+        ("Total Handshake", "2,208"),
+    ]
+    assert "~1,056 more bytes" not in analysis
+
+
+def test_migrate_from_ecdh_p256_counts_the_handshake_against_its_own_key_share(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The figures use the 64-byte key share of migrate's ECDH P-256 row and are not labelled as X25519."""
+    analysis = _impact_analysis(_migrate(monkeypatch, "ecdh-p256"))
+    assert "TLS 1.3 handshake vs ECDH P-256, both directions" in analysis
+    assert "2,144" in analysis
+    assert _handshake_rows(analysis) == [
+        ("ClientHello", "1,120"),
+        ("ServerHello", "1,024"),
+        ("Total Handshake", "2,144"),
+    ]
+    assert "X25519" not in analysis
+
+
+def test_migrate_from_x25519_and_impact_give_the_same_handshake_figures(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Both commands describe the X25519 to ML-KEM-768 migration with the same three figures."""
+    migrate_rows = _handshake_rows(_migrate(monkeypatch, "x25519"))
+    impact = CliRunner().invoke(cli.app, ["impact", "ml-kem-768"])
+    assert impact.exit_code == 0
+    impact_rows = _handshake_rows(impact.output)
+    assert [label for label, _ in impact_rows] == ["ClientHello", "ServerHello", "Total Handshake"]
+    assert dict(migrate_rows).get("Total Handshake") == dict(impact_rows)["Total Handshake"]
+    assert migrate_rows == impact_rows
+
+
+@pytest.mark.parametrize(
+    ("from_algo", "commands"),
+    [
+        ("x25519", ["pqc-bench impact ml-kem-768", "pqc-bench explain ml-kem-768"]),
+        ("ecdh-p256", ["pqc-bench impact ml-kem-768", "pqc-bench explain ml-kem-768"]),
+        ("rsa-2048", ["pqc-bench explain ml-dsa-65"]),
+    ],
+)
+def test_commands_named_in_migrate_run(
+    monkeypatch: pytest.MonkeyPatch, from_algo: str, commands: list[str]
+) -> None:
+    """Every pqc-bench command that migrate tells the reader to run exits 0."""
+    output = _migrate(monkeypatch, from_algo)
+    named = re.findall(r"\bRun (pqc-bench .+?) for ", output)
+    assert named == commands
+    assert output.count("pqc-bench ") == len(named)
+    for command in named:
+        result = CliRunner().invoke(cli.app, shlex.split(command)[1:])
+        assert result.exit_code == 0, f"{command}\n{result.output}"
 
 
 @pytest.mark.parametrize(("width", "printed"), [(80, 70), (70, 70), (60, 60), (20, 20)])

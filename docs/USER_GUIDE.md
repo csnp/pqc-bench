@@ -227,6 +227,8 @@ pqc-bench migrate --from ecdsa-p256
 pqc-bench migrate --from x25519
 ```
 
+For a key exchange (X25519 or ECDH P-256), the Impact Analysis shows how much the TLS 1.3 handshake grows, compared with the key exchange you are moving from: the ClientHello the client sends, the ServerHello the server sends, and the total for both directions. `pqc-bench impact ml-kem-768` compares with X25519, so it prints the same three figures as `pqc-bench migrate --from x25519` and adds the fragmentation and middlebox risk.
+
 ### Hybrid Cryptography
 
 During the transition period, hybrid modes combine classical and PQC:
