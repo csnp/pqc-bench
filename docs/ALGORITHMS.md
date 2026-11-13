@@ -342,7 +342,7 @@ pqc-bench explain slh-dsa-128f
 | ML-DSA-87 | Level 5 | 2,592 B | 4,595 B | Fast | Fast |
 | Falcon-512 | Level 1 | 897 B | 666 B | Slow | Fast |
 | Falcon-1024 | Level 5 | 1,793 B | 1,280 B | Slow | Fast |
-| SLH-DSA-128f | Level 1 | 32 B | 17,088 B | Slowest | Slow |
+| SLH-DSA-SHA2-128f | Level 1 | 32 B | 17,088 B | Slowest | Slow |
 | RSA-2048* | ~112 bits | 256 B | 256 B | Fast | Fast |
 | ECDSA-P256* | ~128 bits | 64 B | 64 B | Fast | Fast |
 
