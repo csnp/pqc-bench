@@ -1652,6 +1652,101 @@ def test_libraries_algorithm_footer_names_a_certificate_whose_families_are_not_r
     ) in text
 
 
+# The --algorithm values the combined libraries calls below use: the four production-ready libraries
+# list ML-KEM-768 and ML-DSA-65, only liboqs and pqcrypto list Falcon-512, and only BoringSSL and
+# liboqs list SLH-DSA-128s.
+COMBINED_LIBRARY_ALGORITHMS = ["ml-kem-768", "ml-dsa-65", "falcon-512", "slh-dsa-128s"]
+
+# Each libraries call that gives two or more of --production, --fips and --algorithm, one option to a list
+COMBINED_LIBRARY_OPTIONS = [
+    [["--production"], ["--fips"]],
+    *(
+        [*others, ["--algorithm", algorithm]]
+        for others in ([["--production"]], [["--fips"]], [["--production"], ["--fips"]])
+        for algorithm in COMBINED_LIBRARY_ALGORITHMS
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    "options",
+    COMBINED_LIBRARY_OPTIONS,
+    ids=[" ".join(arg for option in options for arg in option) for options in COMBINED_LIBRARY_OPTIONS],
+)
+def test_libraries_options_combine(monkeypatch: pytest.MonkeyPatch, options: list[list[str]]) -> None:
+    """A combined call lists the libraries that each of its options lists on its own, in table order.
+
+    --fips used to win over --production, and both over --algorithm, so `libraries --fips --algorithm
+    falcon-512` listed AWS-LC, whose profile lists no Falcon parameter set. Each row reads as it does
+    in the --algorithm table when --algorithm is given, and as in the unfiltered table otherwise.
+    """
+    _wide_console(monkeypatch)
+    every = _library_rows(CliRunner().invoke(cli.app, ["libraries"]).output)
+    alone = [_library_rows(CliRunner().invoke(cli.app, ["libraries", *option]).output) for option in options]
+    result = CliRunner().invoke(cli.app, ["libraries", *(arg for option in options for arg in option)])
+    assert result.exit_code == 0
+    rows = _library_rows(result.output)
+    expected = [name for name in every if name != "Library" and all(name in shown for shown in alone)]
+    assert [name for name in rows if name != "Library"] == expected
+    reference = alone[-1] if options[-1][0] == "--algorithm" else every
+    for name in expected:
+        assert rows[name] == reference[name]
+    if not expected:
+        assert "No libraries found" in result.output
+
+
+@pytest.mark.parametrize(
+    ("options", "message"),
+    [
+        (
+            ["--fips"],
+            "No libraries found supporting falcon-512 that hold a FIPS 140-3 certificate that lists ML-KEM, "
+            "ML-DSA or SLH-DSA",
+        ),
+        (["--production"], "No libraries found supporting falcon-512 that are production-ready"),
+        (
+            ["--production", "--fips"],
+            "No libraries found supporting falcon-512 that are production-ready and hold a FIPS 140-3 "
+            "certificate that lists ML-KEM, ML-DSA or SLH-DSA",
+        ),
+    ],
+    ids=["--fips", "--production", "--production --fips"],
+)
+def test_libraries_says_when_no_library_passes_every_option(
+    monkeypatch: pytest.MonkeyPatch, options: list[str], message: str
+) -> None:
+    """No table and no AWS-LC row: the message names what each option asks for.
+
+    Only liboqs and pqcrypto list Falcon-512, and neither profile is production-ready or records a
+    FIPS certificate, so the options together leave no library.
+    """
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", *options, "--algorithm", "falcon-512"])
+    assert result.exit_code == 0
+    assert _printed_lines(result.output)[2:] == [message]
+    assert "AWS-LC" not in result.output
+
+
+def test_libraries_fips_and_algorithm_say_what_the_certificate_lists(monkeypatch: pytest.MonkeyPatch) -> None:
+    """--fips --algorithm ml-dsa-65 lists AWS-LC with FIPS No, and a line says #5298 lists ML-KEM, not ML-DSA."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--fips", "--algorithm", "ml-dsa-65"])
+    assert result.exit_code == 0
+    rows = _library_rows(result.output)
+    assert [name for name in rows if name != "Library"] == ["AWS-LC (AWS Libcrypto)"]
+    assert rows["AWS-LC (AWS Libcrypto)"][1:3] == ["Production", "No"]
+    assert "AWS-LC (AWS Libcrypto): FIPS certificate #5298 lists ML-KEM, not ML-DSA." in _printed_lines(result.output)
+
+
+def test_libraries_help_says_the_options_combine() -> None:
+    """--help says how --production, --fips and --algorithm combine instead of leaving one to win unsaid."""
+    result = CliRunner().invoke(cli.app, ["libraries", "--help"])
+    assert result.exit_code == 0
+    assert "The options combine: a library is listed only when it passes each option given." in _error_words(
+        result.output
+    )
+
+
 @pytest.mark.parametrize("algorithm", sorted(ALGORITHMS))
 def test_explain_prints_no_quantum_security_bits(algorithm: str) -> None:
     """explain shows no quantum security bit figure, a number with no cited source."""

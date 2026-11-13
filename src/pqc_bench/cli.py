@@ -876,6 +876,24 @@ def _library_algorithm_ids() -> list[str]:
     return sorted(algo_id for algo_id in algo_ids if get_libraries_for_algorithm(algo_id))
 
 
+def _no_library_passes_every_option(algorithm: str | None, production_only: bool, fips_only: bool) -> Text:
+    """The line libraries prints when no library passes every option given.
+
+    It names what each option given asks for, so the reader sees that the options were combined.
+    """
+    parts: list[str | Text] = ["No libraries found"]
+    if algorithm:
+        parts += [" supporting ", _shown(algorithm)]
+    conditions = []
+    if production_only:
+        conditions.append("are production-ready")
+    if fips_only:
+        conditions.append("hold a FIPS 140-3 certificate that lists ML-KEM, ML-DSA or SLH-DSA")
+    if conditions:
+        parts.append(f" that {' and '.join(conditions)}")
+    return Text.assemble(*parts, style="yellow")
+
+
 @app.command()
 def libraries(
     production_only: bool = typer.Option(
@@ -903,6 +921,9 @@ def libraries(
     liboqs is a research library and is not production-ready;
     --production lists the libraries that are.
 
+    The options combine: a library is listed only when it passes
+    each option given.
+
     Examples:
 
         pqc-bench libraries
@@ -912,6 +933,8 @@ def libraries(
         pqc-bench libraries --fips
 
         pqc-bench libraries --algorithm ml-kem-768
+
+        pqc-bench libraries --production --algorithm ml-kem-768
     """
     from rich import box
     from rich.table import Table
@@ -921,13 +944,11 @@ def libraries(
     print_rule(console, "═", 70)
     console.print()
 
-    # Filter libraries
+    # Filter libraries. Each option given keeps only the libraries that pass it, so a call that
+    # combines options lists the libraries that pass all of them.
     family: str | None = None  # the AlgorithmSupport field of --algorithm, when it filters the table
-    if fips_only:
-        libs = get_libraries_with_fips()
-    elif production_only:
-        libs = get_production_ready_libraries()
-    elif algorithm:
+    libs = list(LIBRARIES.values())
+    if algorithm:
         libs = get_libraries_for_algorithm(algorithm)
         if not libs and not _names_known_algorithm(algorithm):
             console.print(Text.assemble("Unknown algorithm: ", _shown(algorithm), style="red"))
@@ -937,12 +958,21 @@ def libraries(
                 console.print(f"  • {algo_id}")
             raise typer.Exit(1)
         if not libs:
+            # No library supports the algorithm, and the other options only remove libraries
             console.print(Text.assemble("No libraries found supporting ", _shown(algorithm), style="yellow"))
             console.print()
             return
         family = get_algorithm_family(algorithm)
-    else:
-        libs = list(LIBRARIES.values())
+    if production_only:
+        production_ready = {lib.id for lib in get_production_ready_libraries()}
+        libs = [lib for lib in libs if lib.id in production_ready]
+    if fips_only:
+        with_fips = {lib.id for lib in get_libraries_with_fips()}
+        libs = [lib for lib in libs if lib.id in with_fips]
+    if not libs:
+        console.print(_no_library_passes_every_option(algorithm, production_only, fips_only))
+        console.print()
+        return
 
     table = Table(box=box.ROUNDED, show_header=True, header_style="bold")
     table.add_column("Library")
