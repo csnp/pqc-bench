@@ -996,6 +996,30 @@ def test_libraries_algorithm_lists_the_falcon_libraries(monkeypatch: pytest.Monk
     assert "liboqs (Open Quantum Safe)" in result.output
 
 
+@pytest.mark.parametrize("algorithm", ["ml-dsa-44", "ml-dsa-65", "ml-dsa-87", "Dilithium3"])
+def test_libraries_algorithm_shows_no_aws_lc_certificate_for_ml_dsa(
+    monkeypatch: pytest.MonkeyPatch, algorithm: str
+) -> None:
+    """#5298 lists ML-KEM and no ML-DSA: an ML-DSA view reads No for AWS-LC and says what #5298 lists."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algorithm])
+    assert result.exit_code == 0
+    assert _library_rows(result.output)["AWS-LC (AWS Libcrypto)"][1:3] == ["Production", "No"]
+    assert "AWS-LC (AWS Libcrypto): FIPS certificate #5298 lists ML-KEM, not ML-DSA." in _printed_lines(result.output)
+
+
+@pytest.mark.parametrize("algorithm", ["ml-kem-512", "ml-kem-768", "ml-kem-1024", "Kyber768"])
+def test_libraries_algorithm_shows_the_aws_lc_certificate_for_ml_kem(
+    monkeypatch: pytest.MonkeyPatch, algorithm: str
+) -> None:
+    """#5298 lists ML-KEM: an ML-KEM view shows it for AWS-LC and prints no line about what it lists."""
+    _wide_console(monkeypatch)
+    result = CliRunner().invoke(cli.app, ["libraries", "--algorithm", algorithm])
+    assert result.exit_code == 0
+    assert _library_rows(result.output)["AWS-LC (AWS Libcrypto)"][1:3] == ["Production", "#5298"]
+    assert "FIPS certificate #" not in result.output
+
+
 COMPARE_COMMAND = re.compile(r"pqc-bench compare (\S+) (\S+)")
 
 

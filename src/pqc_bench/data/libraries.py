@@ -86,6 +86,9 @@ class LibraryProfile:
     production_readiness: ProductionReadiness
     fips_status: FIPSStatus
     fips_cert_number: str | None = None
+    # The algorithm families fips_cert_number lists, by AlgorithmSupport field name ("ml_kem"),
+    # or None when they are not recorded here
+    fips_cert_families: list[str] | None = None
 
     # Algorithm support
     algorithms: AlgorithmSupport | None = None
@@ -131,6 +134,7 @@ LIBRARIES: dict[str, LibraryProfile] = {
         # #4793 is Canonical's Ubuntu 22.04 Libgcrypt module, not an AWS-LC module.
         fips_status=FIPSStatus.VALIDATED,
         fips_cert_number="5298",
+        fips_cert_families=["ml_kem"],
         algorithms=AlgorithmSupport(
             ml_kem=["512", "768", "1024"],
             ml_dsa=["44", "65", "87"],
@@ -594,9 +598,22 @@ def get_libraries_with_fips() -> list[LibraryProfile]:
 
 _ALGORITHM_SUPPORT_FIELDS = frozenset(support_field.name for support_field in fields(AlgorithmSupport))
 
+# The name text gives the algorithm family of each AlgorithmSupport field.
+ALGORITHM_FAMILY_NAMES: dict[str, str] = {
+    "ml_kem": "ML-KEM",
+    "ml_dsa": "ML-DSA",
+    "slh_dsa": "SLH-DSA",
+    "falcon": "Falcon",
+    "hybrid_kem": "hybrid KEM",
+    "hybrid_sig": "hybrid signature",
+}
 
-def get_libraries_for_algorithm(algorithm_id: str) -> list[LibraryProfile]:
-    """Get libraries that support an algorithm, given by ID, NIST name or legacy name."""
+
+def _family_and_variant(algorithm_id: str) -> tuple[str, str] | None:
+    """The AlgorithmSupport field and variant of an algorithm given by ID, NIST name or legacy name.
+
+    None for a value that names no AlgorithmSupport field.
+    """
     algo = get_algorithm(algorithm_id)
     if algo is not None:
         algorithm_id = algo.id
@@ -605,7 +622,38 @@ def get_libraries_for_algorithm(algorithm_id: str) -> list[LibraryProfile]:
     # "ml-kem-768" -> "ml_kem", "768" and "falcon-512" -> "falcon", "512"
     family, _, variant = algorithm_id.lower().replace("-", "_").rpartition("_")
     if family not in _ALGORITHM_SUPPORT_FIELDS:
+        return None
+    return family, variant
+
+
+def get_algorithm_family(algorithm_id: str) -> str | None:
+    """The AlgorithmSupport field of an algorithm given by ID, NIST name or legacy name.
+
+    "ml-dsa-65", "ML-DSA-65" and "Dilithium3" give "ml_dsa". None for a value that names no
+    AlgorithmSupport field.
+    """
+    family_and_variant = _family_and_variant(algorithm_id)
+    return None if family_and_variant is None else family_and_variant[0]
+
+
+def get_fips_certificate_for_family(library: LibraryProfile, family: str) -> str | None:
+    """The library's FIPS certificate number, or None when it is not shown for an algorithm family.
+
+    None when the library has no certificate, or when fips_cert_families records the families the
+    certificate lists and ``family`` is not one of them. A certificate whose families are not
+    recorded is returned for every family.
+    """
+    if library.fips_cert_families is not None and family not in library.fips_cert_families:
+        return None
+    return library.fips_cert_number
+
+
+def get_libraries_for_algorithm(algorithm_id: str) -> list[LibraryProfile]:
+    """Get libraries that support an algorithm, given by ID, NIST name or legacy name."""
+    family_and_variant = _family_and_variant(algorithm_id)
+    if family_and_variant is None:
         return []
+    family, variant = family_and_variant
 
     result = []
     for lib in LIBRARIES.values():
