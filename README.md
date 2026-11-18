@@ -16,15 +16,14 @@ Requires Python 3.10+ ([install Python](https://www.python.org/downloads/))
 ```bash
 git clone https://github.com/csnp/pqc-bench.git
 cd pqc-bench
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
+pqc-bench recommend "REST API with JWT auth"
 ```
 
 ### Basic Usage
 
 ```bash
-# Get a recommendation
-pqc-bench recommend "REST API with JWT auth"
-
 # Explain an algorithm
 pqc-bench explain ml-kem-768
 

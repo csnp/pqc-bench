@@ -92,6 +92,41 @@ def test_readme_example_results_match_the_cli() -> None:
     } <= set(checked)
 
 
+def _first_block(path: Path = ROOT / "README.md") -> list[str]:
+    """The lines inside the first fenced code block of ``path``, the block a reader runs first."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = next(index for index, line in enumerate(lines) if line.startswith("```")) + 1
+    return lines[start : lines.index("```", start)]
+
+
+def test_readme_first_block_installs_in_a_virtual_environment_then_recommends() -> None:
+    """The README's first code block installs with the pip of a new virtual environment, then recommends.
+
+    Homebrew's Python puts no ``pip`` command on PATH and refuses a pip install outside a virtual
+    environment (PEP 668), so the block creates and activates one before it installs.
+    """
+    block = _first_block()
+    activate = next(index for index, line in enumerate(block) if "source .venv/bin/activate" in line)
+    assert "python3 -m venv .venv" in block[activate], block
+    assert all("pip" not in line for line in block[:activate]), block
+    assert any(line.startswith("pip install ") for line in block[activate + 1 :]), block
+    assert re.fullmatch(r'pqc-bench recommend "[^"]+"', block[-1]), block
+
+
+def test_readme_first_block_ends_with_a_recommendation_and_a_next_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The README's first code block ends with a recommend command that prints a recommendation, then a Next line."""
+    command = _first_block()[-1]
+    assert re.fullmatch(r'pqc-bench recommend "[^"]+"', command), f"the first block ends with {command!r}"
+    console = Console(width=100, force_terminal=False)
+    monkeypatch.setattr(cli, "console", console)
+    monkeypatch.setattr(cli.terminal, "console", console)
+    result = CliRunner().invoke(app, shlex.split(command)[1:])
+    assert result.exit_code == 0
+    assert "#1 PQC-Bench Recommendation" in result.output
+    last = [line.rstrip() for line in result.output.splitlines() if line.strip()][-1]
+    assert last.startswith("Next: pqc-bench explain "), last
+
+
 def test_readme_table_calls_each_default_the_level_3_default() -> None:
     """The README algorithm table qualifies the defaults that recommend's note names."""
     rows = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
