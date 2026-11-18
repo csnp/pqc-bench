@@ -26,6 +26,7 @@ pip install pqc-bench
 # From source
 git clone https://github.com/csnp/pqc-bench.git
 cd pqc-bench
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
 

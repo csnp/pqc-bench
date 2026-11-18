@@ -190,6 +190,23 @@ def test_user_guide_json_sample_is_output_of_the_cli() -> None:
     assert sample == result.output.splitlines(), f"docs/USER_GUIDE.md sample is not the output of: {command}"
 
 
+def test_user_guide_source_install_uses_a_virtual_environment() -> None:
+    """The user guide's "From source" steps install with the pip of a new virtual environment.
+
+    On a Mac whose python3 is Homebrew's there is no ``pip`` command on PATH, and ``pip3 install -e .``
+    outside a virtual environment stops with ``externally-managed-environment`` (PEP 668), so the
+    steps create and activate one before they install, as the README's first block does.
+    """
+    lines = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8").splitlines()
+    start = lines.index("# From source") + 1
+    steps = lines[start : lines.index("```", start)]
+    activate = next((index for index, line in enumerate(steps) if "source .venv/bin/activate" in line), None)
+    assert activate is not None, steps
+    assert "python3 -m venv .venv" in steps[activate], steps
+    assert all("pip" not in line for line in steps[:activate]), steps
+    assert any(line.startswith("pip install ") for line in steps[activate + 1 :]), steps
+
+
 def test_user_guide_hybrid_table_lists_every_hybrid_kem() -> None:
     guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
     for mode in HYBRID_MODES.values():
