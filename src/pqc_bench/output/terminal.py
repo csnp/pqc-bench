@@ -145,6 +145,11 @@ class TerminalOutput:
                 f"  [cyan]pqc-bench compare {algo.id} {other.id}[/cyan]  - Side-by-side comparison"
             )
 
+        # The one command to run next, as the last line, with no colour or
+        # highlighting, so it can be run exactly as printed.
+        self.console.print()
+        self.console.print(f"Next: pqc-bench explain {algo.id}", highlight=False)
+
     def _print_verbose(self, result: RecommendationResult) -> None:
         """Print verbose output with full details."""
         primary = result.primary
