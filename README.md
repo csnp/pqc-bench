@@ -1,16 +1,11 @@
 # PQC-Bench
 
-**Post-Quantum Cryptography Recommendation Engine**
+[![CI](https://github.com/csnp/pqc-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/csnp/pqc-bench/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
+[Website](https://qramm.org) · [Docs](https://qramm.org/learn/pqc-bench-guide.html)
 
 Describe your use case in plain words, and PQC-Bench recommends post-quantum algorithms for it and says why.
-
-[![CI](https://github.com/csnp/pqc-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/csnp/pqc-bench/actions/workflows/ci.yml)
-[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-
-[Quick Start](#quick-start) • [What it does](#what-it-does) • [Documentation](#documentation)
-
----
 
 ## Quick Start
 
