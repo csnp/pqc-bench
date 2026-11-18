@@ -146,9 +146,11 @@ class TerminalOutput:
             )
 
         # The one command to run next, as the last line, with no colour or
-        # highlighting, so it can be run exactly as printed.
+        # highlighting, so it can be run exactly as printed. soft_wrap=True
+        # keeps Rich from inserting a line break in it on a console narrower
+        # than the line.
         self.console.print()
-        self.console.print(f"Next: pqc-bench explain {algo.id}", highlight=False)
+        self.console.print(f"Next: pqc-bench explain {algo.id}", highlight=False, soft_wrap=True)
 
     def _print_verbose(self, result: RecommendationResult) -> None:
         """Print verbose output with full details."""

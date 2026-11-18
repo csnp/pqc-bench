@@ -333,9 +333,9 @@ def test_commands_named_in_the_healthcare_baseline_note_run(args: list[str]) -> 
     assert "ML-KEM-768" in result.output
 
 
-def _recommend_text(monkeypatch: pytest.MonkeyPatch, *args: str) -> str:
-    """Run recommend in text mode on a 100-column console and return its output."""
-    console = Console(width=100, force_terminal=False)
+def _recommend_text(monkeypatch: pytest.MonkeyPatch, *args: str, width: int = 100) -> str:
+    """Run recommend in text mode on a console ``width`` columns wide and return its output."""
+    console = Console(width=width, force_terminal=False)
     monkeypatch.setattr(cli, "console", console)
     monkeypatch.setattr(cli.terminal, "console", console)
     result = CliRunner().invoke(cli.app, ["recommend", *args])
@@ -502,6 +502,20 @@ def test_recommend_text_ends_with_a_next_line_that_runs(monkeypatch: pytest.Monk
     follow = CliRunner().invoke(cli.app, shlex.split(last.removeprefix("Next: "))[1:])
     assert follow.exit_code == 0
     assert primary.algorithm.names.nist_name in follow.output
+
+
+@pytest.mark.parametrize("narrower_by", [1, 16])
+@pytest.mark.parametrize("query", ["REST API with JWT auth", "mobile banking app"])
+def test_recommend_text_next_line_stays_whole_on_a_console_narrower_than_it(
+    monkeypatch: pytest.MonkeyPatch, query: str, narrower_by: int
+) -> None:
+    """On a console 1 or 16 columns narrower than the Next line, the last line is still the whole Next line."""
+    primary = RecommendationEngine().recommend(QueryParser().parse(query), query=query).primary
+    assert primary is not None
+    next_line = f"Next: pqc-bench explain {primary.algorithm.id}"
+    output = _recommend_text(monkeypatch, query, width=len(next_line) - narrower_by)
+    last = [line.rstrip() for line in output.splitlines() if line.strip()][-1]
+    assert last == next_line
 
 
 NO_REQUIREMENT = "No requirement was recognised in your query"
