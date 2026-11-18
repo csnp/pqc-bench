@@ -491,6 +491,19 @@ def test_recommend_text_brief_lines_do_not_end_in_a_dash(
     assert not re.search(r"\(Score: \d+\) -\s*$", output, re.MULTILINE)
 
 
+@pytest.mark.parametrize("query", ["REST API with JWT auth", "mobile banking app"])
+def test_recommend_text_ends_with_a_next_line_that_runs(monkeypatch: pytest.MonkeyPatch, query: str) -> None:
+    """The last line is "Next: pqc-bench explain <recommended algorithm>", and that command runs."""
+    output = _recommend_text(monkeypatch, query)
+    primary = RecommendationEngine().recommend(QueryParser().parse(query), query=query).primary
+    assert primary is not None
+    last = [line.rstrip() for line in output.splitlines() if line.strip()][-1]
+    assert last == f"Next: pqc-bench explain {primary.algorithm.id}"
+    follow = CliRunner().invoke(cli.app, shlex.split(last.removeprefix("Next: "))[1:])
+    assert follow.exit_code == 0
+    assert primary.algorithm.names.nist_name in follow.output
+
+
 NO_REQUIREMENT = "No requirement was recognised in your query"
 UNRECOGNISED_QUERY = "zzzz qqqq nothing matches"
 
