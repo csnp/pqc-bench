@@ -516,7 +516,14 @@ source .venv/bin/activate
 pqc-bench --version
 ```
 
-If you have no `pqc-bench` folder, or it has no `.venv` folder inside, follow the [installation](#installation) steps first.
+If your `pqc-bench` folder has no `.venv` folder inside, create the virtual environment and install `pqc-bench` in it. Run these lines inside the `pqc-bench` folder:
+```bash
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+pqc-bench --version
+```
+
+If you have no `pqc-bench` folder, follow the [installation](#installation) steps.
 
 ---
 
