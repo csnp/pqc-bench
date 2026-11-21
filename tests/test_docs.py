@@ -212,6 +212,45 @@ def test_user_guide_source_install_uses_a_virtual_environment() -> None:
     assert any(line.startswith("pip install ") for line in steps[activate + 1 :]), steps
 
 
+def _section(heading: str, path: Path = ROOT / "docs" / "USER_GUIDE.md") -> list[str]:
+    """The lines of ``path`` after the line ``heading``, up to the next heading outside a code block."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    start = lines.index(heading) + 1
+    fenced = False
+    for index in range(start, len(lines)):
+        if lines[index].startswith("```"):
+            fenced = not fenced
+        elif not fenced and re.match(r"#{1,6} ", lines[index]):
+            return lines[start:index]
+    return lines[start:]
+
+
+def _code_blocks(lines: list[str]) -> list[list[str]]:
+    """The lines inside each fenced code block in ``lines``."""
+    fences = [index for index, line in enumerate(lines) if line.startswith("```")]
+    return [lines[opening + 1 : closing] for opening, closing in zip(fences[::2], fences[1::2], strict=True)]
+
+
+def test_user_guide_command_not_found_sets_up_an_existing_folder_in_place() -> None:
+    """The "Command not found" entry gives a reader whose pqc-bench folder has no .venv the lines to run in it.
+
+    The installation steps start with ``git clone``, which stops with "destination path 'pqc-bench' already
+    exists and is not an empty directory" when it is run beside a pqc-bench folder. So the entry gives that
+    reader the installation lines that follow ``cd pqc-bench``, and sends only a reader with no pqc-bench
+    folder to the installation steps.
+    """
+    steps = _code_blocks(_section("### Installation"))[0]
+    in_the_folder = steps[steps.index("cd pqc-bench") + 1 :]
+    entry = _section('### "Command not found"')
+    setups = [block for block in _code_blocks(entry) if any("python3 -m venv .venv" in line for line in block)]
+    assert len(setups) == 1, f"the entry has no code block that creates .venv: {entry}"
+    assert setups[0][: len(in_the_folder)] == in_the_folder, setups[0]
+    assert all("git clone" not in line for line in setups[0]), setups[0]
+    to_installation = [line for line in entry if "](#installation)" in line]
+    assert to_installation, f"the entry does not link to the installation steps: {entry}"
+    assert all(".venv" not in line for line in to_installation), to_installation
+
+
 @pytest.mark.parametrize("path", USER_DOCS, ids=[str(p.relative_to(ROOT)) for p in USER_DOCS])
 def test_docs_do_not_install_pqc_bench_from_pypi(path: Path) -> None:
     """No install command in the user docs asks for pqc-bench by name, which pip looks up on PyPI.
