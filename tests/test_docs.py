@@ -251,6 +251,24 @@ def test_user_guide_command_not_found_sets_up_an_existing_folder_in_place() -> N
     assert all(".venv" not in line for line in to_installation), to_installation
 
 
+def test_contributing_guide_development_setup_uses_a_virtual_environment() -> None:
+    """The contributing guide's "Development setup" steps install with the pip of a new virtual environment.
+
+    With Homebrew's Python 3.14.3 on a Mac there is no ``pip`` command on PATH, and
+    ``pip3 install --dry-run -e ".[dev]"`` in a clone outside a virtual environment stops with
+    ``externally-managed-environment`` (PEP 668), so the steps create and activate one before they
+    install the development tools, as the README's first block and the user guide do.
+    """
+    lines = (ROOT / "docs" / "CONTRIBUTING.md").read_text(encoding="utf-8").splitlines()
+    start = lines.index("# Development setup") + 1
+    steps = lines[start : lines.index("```", start)]
+    activate = next((index for index, line in enumerate(steps) if "source .venv/bin/activate" in line), None)
+    assert activate is not None, steps
+    assert "python3 -m venv .venv" in steps[activate], steps
+    assert all("pip" not in line for line in steps[:activate]), steps
+    assert 'pip install -e ".[dev]"' in steps[activate + 1 :], steps
+
+
 @pytest.mark.parametrize("path", USER_DOCS, ids=[str(p.relative_to(ROOT)) for p in USER_DOCS])
 def test_docs_do_not_install_pqc_bench_from_pypi(path: Path) -> None:
     """No install command in the user docs asks for pqc-bench by name, which pip looks up on PyPI.
