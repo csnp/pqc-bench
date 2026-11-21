@@ -25,6 +25,11 @@ COMMAND = re.compile(r"^\s*(?:\$\s+)?(pqc-bench\s.*?)\s*(?:#.*)?$")
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 # "SLH-DSA-128f" and the like; FIPS 205 names a parameter set with its hash, as in SLH-DSA-SHA2-128f.
 SHORT_SLH_DSA_NAME = re.compile(r"\bSLH-DSA-\d")
+# A pip, pip3, pipx or uv tool install command anywhere on a line, with its arguments up to a comment,
+# a closing backtick or the next command.
+INSTALL_COMMAND = re.compile(r"(?<![\w.-])(?:pip3?|pipx|uv tool)\s+install\s+([^`#&|;]*)")
+# A requirement that pip looks up on PyPI by the name pqc-bench: pqc-bench, pqc_bench, pqc-bench[dev], pqc-bench==0.3.0.
+PQC_BENCH_BY_NAME = re.compile(r"(?i)pqc[-_.]+bench(?:\[[^\]]*\])?(?:[<>=!~;].*)?")
 
 
 def _documented_commands() -> list[tuple[str, str]]:
@@ -205,6 +210,29 @@ def test_user_guide_source_install_uses_a_virtual_environment() -> None:
     assert "python3 -m venv .venv" in steps[activate], steps
     assert all("pip" not in line for line in steps[:activate]), steps
     assert any(line.startswith("pip install ") for line in steps[activate + 1 :]), steps
+
+
+@pytest.mark.parametrize("path", USER_DOCS, ids=[str(p.relative_to(ROOT)) for p in USER_DOCS])
+def test_docs_do_not_install_pqc_bench_from_pypi(path: Path) -> None:
+    """No install command in the user docs asks for pqc-bench by name, which pip looks up on PyPI.
+
+    No package named pqc-bench is published on PyPI, so ``pip install pqc-bench`` and
+    ``pip install --upgrade pqc-bench`` stop with ``No matching distribution found for pqc-bench``.
+    The README and the user guide install it from a clone of the repository instead, with ``pip install -e .``.
+    """
+    by_name = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        for match in INSTALL_COMMAND.finditer(line):
+            words = [word.strip("\"'") for word in match.group(1).split()]
+            # The value of -e (--editable) is a local folder or a URL, which pip does not look up by name.
+            names = [
+                word
+                for index, word in enumerate(words)
+                if not word.startswith("-") and (index == 0 or words[index - 1] not in ("-e", "--editable"))
+            ]
+            if any(PQC_BENCH_BY_NAME.fullmatch(name) for name in names):
+                by_name.append(f"{path.relative_to(ROOT)}:{number}: {line.strip()}")
+    assert by_name == []
 
 
 def test_user_guide_hybrid_table_lists_every_hybrid_kem() -> None:

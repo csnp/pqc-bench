@@ -20,9 +20,6 @@ Complete guide to using PQC-Bench for post-quantum cryptography recommendations.
 ### Installation
 
 ```bash
-# From PyPI
-pip install pqc-bench
-
 # From source
 git clone https://github.com/csnp/pqc-bench.git
 cd pqc-bench
@@ -513,11 +510,13 @@ pqc-bench list
 
 ### "Command not found"
 
-Verify installation:
+The installation steps put `pqc-bench` in the `.venv` virtual environment, which is active only in the terminal window where you activated it. To use `pqc-bench` in a new window, go to the `pqc-bench` folder that `git clone` created and activate it again:
 ```bash
-pip install --upgrade pqc-bench
+source .venv/bin/activate
 pqc-bench --version
 ```
+
+If you have no `pqc-bench` folder, or it has no `.venv` folder inside, follow the [installation](#installation) steps first.
 
 ---
 
